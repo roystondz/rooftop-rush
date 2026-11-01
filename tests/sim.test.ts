@@ -11,6 +11,7 @@ function playing(ballX = 0, ballZ = 0): World {
   const w = createWorld();
   w.phase = 'playing';
   w.phaseTimer = 0;
+  w.kickoffPending = false;
   Object.assign(w.ball, { x: ballX, y: BALL.radius, z: ballZ, vx: 0, vy: 0, vz: 0, owner: -1 });
   // Park everyone far from the action unless a test moves them.
   w.players.forEach((p, i) => Object.assign(p, { x: -15 + i * 6, z: 10, vx: 0, vz: 0 }));

@@ -11,7 +11,7 @@
 //      a few frames instead of making your player jump.
 import { DT, PLAYER } from './constants';
 import { applySnapshot, type Snapshot } from './protocol';
-import { createWorld, moveWithInput } from './sim';
+import { createWorld, holdForKickoff, keepOutOfCentreCircle, moveWithInput } from './sim';
 import type { Input, Player, World } from './types';
 
 /** Corrections bigger than this are teleports (kickoff, goal reset): jump instead of sliding. */
@@ -36,6 +36,8 @@ export class Predictor {
   private scratch: World = createWorld();
   private active = false;
   private hasBall = false;
+  private takingKickoff = false;
+  private keepOutOfCircle = false;
 
   constructor() {
     this.state = { ...this.scratch.players[0] };
@@ -82,6 +84,8 @@ export class Predictor {
     this.playerId = playerId;
     this.hasBall = s.b[6] === playerId;
     this.active = s.phase === 'playing' && server.stun <= 0;
+    this.takingKickoff = s.kickoffPending && this.hasBall;
+    this.keepOutOfCircle = s.kickoffPending && server.team !== s.kickoffTeam;
     if (this.active) for (const p of this.pending) this.apply(p.input);
 
     if (switched) {
@@ -104,7 +108,12 @@ export class Predictor {
   }
 
   private apply(input: Input): void {
+    if (this.takingKickoff) {
+      holdForKickoff(this.state, input);
+      return;
+    }
     moveWithInput(this.state, input, this.hasBall);
+    if (this.keepOutOfCircle) keepOutOfCentreCircle(this.state);
     // Mirror the server's charging rule: holding shoot charges, letting go resets.
     if (input.shoot) {
       this.state.charging = true;

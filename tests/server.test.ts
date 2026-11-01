@@ -129,22 +129,22 @@ describe('game server', () => {
 
   it("moves a player only from that player's own inputs", async () => {
     const [a, b] = await startMatch();
-    const first = await a.waitFor('snap');
-    const myId = first.s.controlled[0];
+    const first = await b.waitFor('snap');
+    // Team 0 kicks off first, so move team 1's player (the kicker must stand still until they pass).
     const theirId = first.s.controlled[1];
-    // Wait for kickoff to end, then hold "up" (−z) for half a second.
+    const myId = first.s.controlled[0];
     await new Promise((r) => setTimeout(r, MATCH.kickoffDelay * 1000 + 100));
-    const before = a.latestSnap().s;
+    const before = b.latestSnap().s;
     for (let seq = 1; seq <= 30; seq++) {
-      a.send({ t: 'input', seq, i: [0, -1, 0] });
+      b.send({ t: 'input', seq, i: [0, -1, 0] });
       await new Promise((r) => setTimeout(r, 1000 / 60));
     }
     await new Promise((r) => setTimeout(r, 100));
-    const after = a.latestSnap();
+    const after = b.latestSnap();
     const z = (s: typeof before, id: number) => s.p[id * 8 + 1];
-    expect(z(after.s, myId)).toBeLessThan(z(before, myId) - 1);
+    expect(z(after.s, theirId)).toBeLessThan(z(before, theirId) - 1);
     expect(after.ack).toBeGreaterThan(20); // the server confirms which inputs it used
-    expect(b.latestSnap().s.controlled[1]).toBe(theirId);
+    expect(z(a.latestSnap().s, myId)).toBe(z(before, myId)); // the other player's didn't move
     a.close();
     b.close();
   });

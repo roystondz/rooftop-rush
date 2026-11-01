@@ -39,10 +39,14 @@ npm run dev
 | Curl a shot | Steer sideways while charging | — |
 | Pass | K | A |
 | Tackle (not from behind) | L | B |
-| Switch player | Q | LB |
+| Switch player (to the teammate with the **Q** badge) | Q | LB |
 | Pause / sound | Esc / M | Start |
 
 Passes and tackles fill your **Rush** meter. When it's full, your next shot is a power shot.
+
+**Kickoffs:** the kicker starts with the ball and must pass to a teammate first. You can turn on the spot to aim, but not dribble or shoot, and the other team must stay outside the centre circle until the pass. If nobody passes within 6 seconds, the pass is made for you.
+
+**Switching:** you automatically take over the player who receives your pass or wins the ball. When defending, you're also switched to a teammate who is much closer to the ball (at most once every 0.75 s, so it never fights a manual switch). The **Q** badge shows who pressing Q would give you.
 
 ## How the code is organised
 

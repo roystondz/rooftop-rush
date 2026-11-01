@@ -13,6 +13,7 @@ export const PITCH = {
   postRadius: 0.1,
   boxDepth: 6, // keeper area, measured from the goal line
   boxHalfWidth: 6,
+  centreCircle: 3, // opponents stay outside this until the kickoff pass
   ceiling: 9, // the cage has a net roof
 } as const;
 
@@ -80,6 +81,7 @@ export const PASS = {
 export const MATCH = {
   duration: 180,
   kickoffDelay: 1.6,
+  kickoffPassTime: 6, // seconds to make the kickoff pass before it's made for you
   goalCelebration: 2.8,
 } as const;
 

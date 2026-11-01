@@ -2,7 +2,7 @@
 // and everyone receives the same snapshots. That's what stops cheating.
 import { Bot, BOT_SKILLS } from '../shared/bot';
 import { DT } from '../shared/constants';
-import { autoSwitch, switchToNearest, type Controlled } from '../shared/control';
+import { autoSwitch, autoSwitchDefending, switchToNearest, SwitchTimer, type Controlled } from '../shared/control';
 import { makeSnapshot, SNAPSHOT_EVERY, unpackInput, type ClientMessage, type ServerMessage } from '../shared/protocol';
 import { createWorld, step } from '../shared/sim';
 import { NO_INPUT } from '../shared/types';
@@ -33,6 +33,7 @@ export class Room {
   world: World | null = null;
   private bots: Bot[] = [];
   private controlled: Controlled = [-1, -1];
+  private switchTimer = new SwitchTimer();
   private events: MatchEvent[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -80,7 +81,7 @@ export class Room {
         break;
       case 'switch':
         if (this.world?.phase === 'playing') {
-          const change = switchToNearest(this.world, this.controlled, seat.team);
+          const change = switchToNearest(this.world, this.controlled, seat.team, this.switchTimer);
           if (change) this.handOver([change]);
         }
         break;
@@ -104,6 +105,7 @@ export class Room {
     this.bots = w.players.map((p) => new Bot(p.id, BOT_SKILLS.normal, Date.now() % 100000));
     this.controlled = [0, 1].map((team) => w.players.find((p) => p.team === team && p.role === 'attacker')!.id);
     this.events = [];
+    this.switchTimer = new SwitchTimer();
     for (const s of this.seats) {
       if (!s) continue;
       Object.assign(s, { queue: [], last: { ...NO_INPUT }, wantsRematch: false });
@@ -168,7 +170,10 @@ export class Room {
     );
     step(w, inputs);
     this.events.push(...w.events);
-    this.handOver(autoSwitch(this.controlled, w.events));
+    this.handOver(autoSwitch(w, this.controlled, w.events));
+    for (const seat of this.seats) {
+      if (seat) this.handOver(nonNull(autoSwitchDefending(w, this.controlled, seat.team, this.switchTimer)));
+    }
 
     if (w.tick % SNAPSHOT_EVERY === 0 || w.phase === 'fulltime') this.broadcast(w);
   }
@@ -186,3 +191,5 @@ export class Room {
     for (const seat of this.seats) seat?.send({ t: 'snap', s, ack: seat.ack });
   }
 }
+
+const nonNull = <T>(x: T | null): T[] => (x ? [x] : []);

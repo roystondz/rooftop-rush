@@ -86,6 +86,11 @@ export class Bot {
   }
 
   private withBall(w: World, p: Player, out: Input): void {
+    if (w.kickoffPending) {
+      // Taking a kickoff: a short pause, then pass to a teammate.
+      if (this.possessionTicks > 40) out.pass = true;
+      return;
+    }
     const dir = attackDir(p.team);
     const goalX = dir * HALF_L;
     const distGoal = Math.hypot(goalX - p.x, p.z);

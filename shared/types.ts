@@ -61,6 +61,7 @@ export interface Ball {
 
 export type MatchEventType =
   | 'whistle'
+  | 'kickoff'
   | 'shot'
   | 'powerShot'
   | 'pass'
@@ -94,6 +95,8 @@ export interface World {
   score: [number, number];
   goldenGoal: boolean;
   kickoffTeam: Team;
+  /** True after a kickoff until the kicking team's first pass. */
+  kickoffPending: boolean;
   players: Player[];
   ball: Ball;
   rush: [number, number];

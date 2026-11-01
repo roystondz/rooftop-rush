@@ -50,6 +50,8 @@ export class Renderer {
   private ballShadow!: THREE.Mesh;
   private marker!: THREE.Group;
   private ghost!: THREE.Mesh;
+  private switchHint!: THREE.Sprite;
+  private switchHintId = -1;
   private trail!: THREE.InstancedMesh;
   private trailPoints: THREE.Vector3[] = [];
   private confetti!: THREE.Points;
@@ -94,6 +96,11 @@ export class Renderer {
     this.camX = 0;
     this.trailPoints.length = 0;
     this.ghost.visible = false;
+  }
+
+  /** Marks the teammate the switch button (Q) would give you; -1 hides it. */
+  setSwitchHint(playerId: number): void {
+    this.switchHintId = playerId;
   }
 
   /** Debug view: a ring where the server last confirmed your player was (null hides it). */
@@ -167,6 +174,12 @@ export class Renderer {
       this.marker.scale.setScalar(s);
     } else {
       this.marker.visible = false;
+    }
+
+    const hinted = this.playerViews[this.switchHintId];
+    this.switchHint.visible = !!hinted && this.switchHintId !== controlledId;
+    if (hinted) {
+      this.switchHint.position.set(hinted.root.position.x, 2.8 + Math.sin(this.time * 6) * 0.1, hinted.root.position.z);
     }
 
     // Ball
@@ -466,6 +479,15 @@ export class Renderer {
     this.ghost.visible = false;
     this.scene.add(this.ghost);
 
+    // A "Q" badge over the teammate the switch button would give you.
+    this.switchHint = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: switchBadgeTexture(), depthTest: false, transparent: true }),
+    );
+    this.switchHint.scale.set(1.5, 1.5, 1);
+    this.switchHint.renderOrder = 10;
+    this.switchHint.visible = false;
+    this.scene.add(this.switchHint);
+
     // Power-shot trail: glowing spheres left behind the ball.
     this.trail = new THREE.InstancedMesh(
       new THREE.SphereGeometry(BALL.radius, 10, 8),
@@ -627,6 +649,31 @@ function pitchTexture(): THREE.CanvasTexture {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
+  return tex;
+}
+
+function switchBadgeTexture(): THREE.CanvasTexture {
+  const [c, g] = canvas(128, 128);
+  g.fillStyle = 'rgba(7, 11, 28, 0.85)';
+  g.strokeStyle = '#facc15';
+  g.lineWidth = 8;
+  g.beginPath();
+  g.arc(64, 56, 44, 0, Math.PI * 2);
+  g.fill();
+  g.stroke();
+  g.fillStyle = '#facc15';
+  g.beginPath(); // little pointer underneath
+  g.moveTo(50, 98);
+  g.lineTo(78, 98);
+  g.lineTo(64, 122);
+  g.closePath();
+  g.fill();
+  g.font = '900 56px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('Q', 64, 58);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 

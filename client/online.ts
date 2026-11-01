@@ -12,6 +12,7 @@ import {
   type ServerMessage,
   type Snapshot,
 } from '../shared/protocol';
+import { switchTarget } from '../shared/control';
 import { carriedBallPosition, createWorld } from '../shared/sim';
 import type { Team, World } from '../shared/types';
 import type { Effects } from './effects';
@@ -107,6 +108,7 @@ export class OnlineGame {
     this.blendInto(this.view);
     this.predictor.decay(frameDt);
     this.drawPrediction(this.view);
+    this.renderer.setSwitchHint(defendingHint(this.view, this.snaps[this.snaps.length - 1].controlled, this.team));
     this.renderer.render(this.view, null, 1, frameDt, this.controlledId);
     this.hud.update(this.view, this.view.players[this.controlledId], frameDt);
     this.updateNetReadout();
@@ -212,4 +214,11 @@ export class OnlineGame {
         break;
     }
   }
+}
+
+/** While the other team has the ball, mark the teammate the switch button would give you. */
+function defendingHint(w: World, controlled: [number, number], team: Team): number {
+  const owner = w.ball.owner >= 0 ? w.players[w.ball.owner] : undefined;
+  if (w.phase !== 'playing' || owner?.team === team) return -1;
+  return switchTarget(w, [...controlled], team);
 }

@@ -12,6 +12,7 @@ const ME = 0;
 function openPitch(): World {
   const w = createWorld();
   w.phase = 'playing';
+  w.kickoffPending = false;
   w.players.forEach((p, i) => Object.assign(p, { x: -16 + i * 6, z: 10 }));
   Object.assign(w.players[ME], { x: 0, z: 0 });
   Object.assign(w.ball, { x: 15, z: -10 });

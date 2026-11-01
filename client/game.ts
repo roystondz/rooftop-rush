@@ -2,7 +2,15 @@
 // at a fixed 60 ticks per second.
 import { Bot, BOT_SKILLS, type Difficulty } from '../shared/bot';
 import { DT } from '../shared/constants';
-import { autoSwitch, switchToNearest, type Controlled, type Handover } from '../shared/control';
+import {
+  autoSwitch,
+  autoSwitchDefending,
+  switchTarget,
+  switchToNearest,
+  SwitchTimer,
+  type Controlled,
+  type Handover,
+} from '../shared/control';
 import { createWorld, step } from '../shared/sim';
 import type { Input, Team, World } from '../shared/types';
 import type { Effects } from './effects';
@@ -16,6 +24,7 @@ export class Game {
   paused = false;
 
   private controlled: Controlled = [-1, -1];
+  private switchTimer = new SwitchTimer();
   private bots: Bot[] = [];
   private prev: Snapshot | null = null;
   private acc = 0;
@@ -43,6 +52,7 @@ export class Game {
     this.prev = null;
     this.acc = 0;
     this.paused = false;
+    this.switchTimer = new SwitchTimer();
     this.effects.reset(this.humanTeam);
     this.renderer.setupPlayers(w);
     this.hud.show();
@@ -65,13 +75,16 @@ export class Game {
       }
     }
     const alpha = this.paused ? 1 : this.acc / DT;
+    const owner = w.ball.owner >= 0 ? w.players[w.ball.owner] : undefined;
+    const defending = w.phase === 'playing' && owner?.team !== this.humanTeam;
+    this.renderer.setSwitchHint(defending ? switchTarget(w, this.controlled, this.humanTeam) : -1);
     this.renderer.render(w, this.prev, alpha, this.paused ? 0 : frameDt, this.controlledId);
     this.hud.update(w, w.players[this.controlledId], frameDt);
   }
 
   private tick(w: World): void {
     const human = this.input.read();
-    if (human.switchPlayer) this.handOver(switchToNearest(w, this.controlled, this.humanTeam));
+    if (human.switchPlayer) this.handOver(switchToNearest(w, this.controlled, this.humanTeam, this.switchTimer));
 
     const humans = new Set([this.controlledId]);
     const inputs: Input[] = w.players.map((p) =>
@@ -80,7 +93,8 @@ export class Game {
     this.prev = takeSnapshot(w, this.prev ?? undefined);
     step(w, inputs);
 
-    for (const c of autoSwitch(this.controlled, w.events)) this.handOver(c);
+    for (const c of autoSwitch(w, this.controlled, w.events)) this.handOver(c);
+    this.handOver(autoSwitchDefending(w, this.controlled, this.humanTeam, this.switchTimer));
     this.effects.watchPhase(w);
     for (const e of w.events) this.effects.handle(w, e);
   }

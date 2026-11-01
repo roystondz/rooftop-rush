@@ -24,6 +24,9 @@ export class Effects {
   watchPhase(w: World): void {
     if (w.phase === this.lastPhase) return;
     if (w.phase === 'kickoff') this.hud.message('KICK OFF', '', 1.2);
+    if (w.phase === 'playing' && this.lastPhase === 'kickoff' && w.kickoffPending && w.kickoffTeam === this.myTeam) {
+      this.hud.message('PASS TO START', 'Turn to aim, then press K', 1.8);
+    }
     this.lastPhase = w.phase;
   }
 

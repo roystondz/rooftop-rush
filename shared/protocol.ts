@@ -48,6 +48,8 @@ export interface Snapshot {
   rush: [number, number];
   golden: boolean;
   winner: Team | -1;
+  kickoffTeam: Team;
+  kickoffPending: boolean;
   controlled: [number, number]; // player id each team's human controls, or -1
   p: number[]; // PLAYER_FIELDS numbers per player
   b: number[]; // ball: x, y, z, vx, vy, vz, owner, power
@@ -74,6 +76,8 @@ export function makeSnapshot(w: World, controlled: readonly number[], events: Ma
     rush: [round(w.rush[0], 1), round(w.rush[1], 1)],
     golden: w.goldenGoal,
     winner: w.winner,
+    kickoffTeam: w.kickoffTeam,
+    kickoffPending: w.kickoffPending,
     controlled: [controlled[0] ?? -1, controlled[1] ?? -1],
     p,
     b: [round(b.x, 3), round(b.y, 3), round(b.z, 3), round(b.vx, 2), round(b.vy, 2), round(b.vz, 2), b.owner, b.power ? 1 : 0],
@@ -90,6 +94,8 @@ export function applySnapshot(w: World, s: Snapshot): void {
   w.rush = [s.rush[0], s.rush[1]];
   w.goldenGoal = s.golden;
   w.winner = s.winner;
+  w.kickoffTeam = s.kickoffTeam;
+  w.kickoffPending = s.kickoffPending;
   w.players.forEach((q, i) => {
     const o = i * PLAYER_FIELDS;
     q.x = s.p[o];

@@ -30,6 +30,7 @@ export function createWorld(options: { duration?: number } = {}): World {
     score: [0, 0],
     goldenGoal: false,
     kickoffTeam: 0,
+    kickoffPending: true,
     players,
     ball: makeBall(),
     rush: [0, 0],
@@ -53,7 +54,12 @@ export function step(w: World, inputs: ReadonlyArray<Input | undefined>): void {
       w.phaseTimer -= DT;
       if (w.phaseTimer <= 0) {
         w.phase = 'playing';
+        w.phaseTimer = MATCH.kickoffPassTime;
         emit(w, { type: 'whistle' });
+        // The kicker starts with the ball and must pass it to a teammate.
+        const kicker = w.players.find((p) => p.team === w.kickoffTeam && p.role === 'attacker');
+        if (kicker) takeBall(w, kicker);
+        else w.kickoffPending = false;
       }
       return;
     case 'goal':
@@ -84,8 +90,18 @@ export function step(w: World, inputs: ReadonlyArray<Input | undefined>): void {
     }
   }
 
+  if (w.kickoffPending) {
+    w.phaseTimer -= DT;
+    const kicker = w.ball.owner >= 0 ? w.players[w.ball.owner] : undefined;
+    if (!kicker || kicker.team !== w.kickoffTeam) w.kickoffPending = false;
+    else if (w.phaseTimer <= 0) pass(w, kicker); // took too long: pass for them
+  }
+
   for (const p of w.players) updatePlayer(w, p, inputs[p.id] ?? NO_INPUT);
   separatePlayers(w);
+  if (w.kickoffPending) {
+    for (const p of w.players) if (p.team !== w.kickoffTeam) keepOutOfCentreCircle(p);
+  }
   updateBall(w);
   if (w.phase === 'playing') checkBallContacts(w);
 }
@@ -112,6 +128,25 @@ export function resetForKickoff(w: World, kickingOff: Team): void {
   w.phase = 'kickoff';
   w.phaseTimer = MATCH.kickoffDelay;
   w.kickoffTeam = kickingOff;
+  w.kickoffPending = true;
+  emit(w, { type: 'kickoff', team: kickingOff });
+}
+
+/** Before the kickoff pass, the defending team must stay outside the centre circle. */
+export function keepOutOfCentreCircle(p: Player): void {
+  const min = PITCH.centreCircle + PLAYER.radius;
+  const d = Math.hypot(p.x, p.z);
+  if (d >= min) return;
+  // Exactly on the centre spot: step back toward their own goal.
+  const nx = d < 1e-6 ? -attackDir(p.team) : p.x / d;
+  const nz = d < 1e-6 ? 0 : p.z / d;
+  p.x = nx * min;
+  p.z = nz * min;
+  const vn = p.vx * nx + p.vz * nz;
+  if (vn < 0) {
+    p.vx -= vn * nx;
+    p.vz -= vn * nz;
+  }
 }
 
 export interface PassChoice {
@@ -246,6 +281,15 @@ function updatePlayer(w: World, p: Player, inp: Input): void {
   }
 
   const hasBall = w.ball.owner === p.id;
+
+  if (hasBall && w.kickoffPending) {
+    // Taking the kickoff: stand still, turn to aim, and pass. No dribbling or shooting.
+    holdForKickoff(p, inp);
+    if (inp.pass && !p.prevPass) pass(w, p);
+    rememberButtons(p, inp);
+    return;
+  }
+
   const { mx, mz } = moveWithInput(p, inp, hasBall);
 
   // Shoot: hold to charge, release to kick. Works on a loose ball too (first-time shot).
@@ -314,6 +358,19 @@ export function moveWithInput(p: Player, inp: Input, hasBall: boolean): { mx: nu
     p.facing = turnTowards(p.facing, Math.atan2(mz, mx), rate * DT);
   }
   return { mx, mz };
+}
+
+/** The kicker before the kickoff pass: can only turn on the spot to choose who to pass to. */
+export function holdForKickoff(p: Player, inp: Input): void {
+  p.vx = 0;
+  p.vz = 0;
+  p.sprinting = false;
+  p.charging = false;
+  p.charge = 0;
+  p.stamina = Math.min(1, p.stamina + PLAYER.staminaRegen * DT);
+  if (Math.hypot(inp.moveX, inp.moveZ) > 0.15) {
+    p.facing = turnTowards(p.facing, Math.atan2(inp.moveZ, inp.moveX), PLAYER.turnRate * DT);
+  }
 }
 
 /** Where the ball sits while `p` dribbles it: just in front of their feet. */
@@ -414,6 +471,7 @@ function shoot(w: World, p: Player, lateral: number): void {
 }
 
 function pass(w: World, p: Player): void {
+  w.kickoffPending = false;
   const choice = bestPassTarget(w, p, 1.5);
   if (!choice) {
     // Nobody to pass to: knock it forward.
