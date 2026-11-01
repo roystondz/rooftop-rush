@@ -1,0 +1,15 @@
+# Render "Blueprint": tells Render how to build and run the game.
+# In Render: New → Blueprint → pick this repository. Render reads this file.
+services:
+  - type: web
+    name: rooftop-rush
+    runtime: node
+    plan: free
+    # Install everything (the build needs Vite and TypeScript), build the page, then run the server.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true # redeploy every time you push to GitHub
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

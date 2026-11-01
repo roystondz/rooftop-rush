@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Rooftop Rush</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="hud" class="hidden">
+      <div class="scoreboard">
+        <div class="team team-0">
+          <span class="name" id="name-0">SKYLINE</span>
+          <span class="score" id="score-0">0</span>
+          <div class="rush"><div class="rush-fill" id="rush-0"></div><span class="rush-label">RUSH</span></div>
+        </div>
+        <div class="clock" id="clock">3:00</div>
+        <div class="team team-1">
+          <span class="score" id="score-1">0</span>
+          <span class="name" id="name-1">NEON</span>
+          <div class="rush"><div class="rush-fill" id="rush-1"></div><span class="rush-label">RUSH</span></div>
+        </div>
+      </div>
+
+      <div id="message" class="message"></div>
+
+      <div class="meters">
+        <div class="meter"><span>POWER</span><div class="bar"><div id="charge" class="fill charge"></div></div></div>
+        <div class="meter"><span>STAMINA</span><div class="bar"><div id="stamina" class="fill stamina"></div></div></div>
+      </div>
+
+      <span id="ping" class="ping hidden"></span>
+      <button id="pause-btn" class="icon-btn" title="Pause (Esc)">II</button>
+      <button id="mute-btn" class="icon-btn" title="Sound on/off (M)">♪</button>
+    </div>
+
+    <div id="menu" class="overlay">
+      <div class="panel">
+        <h1>ROOFTOP <em>RUSH</em></h1>
+        <p class="tag">3v3 cage football above the city</p>
+        <div class="difficulty">
+          <button data-difficulty="easy">Easy</button>
+          <button data-difficulty="normal" class="selected">Normal</button>
+          <button data-difficulty="hard">Hard</button>
+        </div>
+        <button id="play" class="primary">Play vs bots</button>
+        <button id="online-btn">Play online</button>
+        <div class="controls">
+          <div><kbd>WASD</kbd> / <kbd>Arrows</kbd> move</div>
+          <div><kbd>Shift</kbd> sprint</div>
+          <div><kbd>J</kbd> / <kbd>Space</kbd> hold to shoot — steer sideways to curl</div>
+          <div><kbd>K</kbd> pass</div>
+          <div><kbd>L</kbd> tackle</div>
+          <div><kbd>Q</kbd> switch player</div>
+          <div><kbd>Esc</kbd> pause · <kbd>M</kbd> sound</div>
+          <div class="pad">Gamepad: stick move · A pass · X shoot · B tackle · RT sprint · LB switch</div>
+        </div>
+        <p class="hint">Passes and tackles fill your <b>Rush</b> meter. When it's full, your next shot is a power shot.</p>
+      </div>
+    </div>
+
+    <div id="online" class="overlay hidden">
+      <div class="panel">
+        <h2>Play online</h2>
+        <p class="tag">You control one player each. Bots play alongside you.</p>
+        <button id="quick" class="primary">Quick match</button>
+        <button id="create">Create private room</button>
+        <form id="join-form" class="join-row">
+          <input id="code-input" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
+          <button id="join" type="submit">Join</button>
+        </form>
+        <p id="online-status" class="status"></p>
+        <button id="online-back">Back</button>
+      </div>
+    </div>
+
+    <div id="waiting" class="overlay hidden">
+      <div class="panel">
+        <h2 id="waiting-title">Waiting for an opponent…</h2>
+        <div id="code-box">
+          <p class="tag">Share this room code</p>
+          <div id="room-code" class="room-code">----</div>
+          <button id="copy-code">Copy code</button>
+        </div>
+        <p class="hint">Your friend opens the game, picks <b>Play online</b> and joins with the code. For a quick test, open this page in a second tab.</p>
+        <button id="cancel-wait">Cancel</button>
+      </div>
+    </div>
+
+    <div id="pause" class="overlay hidden">
+      <div class="panel">
+        <h2 id="pause-title">Paused</h2>
+        <button id="resume" class="primary">Resume</button>
+        <button id="quit">Quit to menu</button>
+      </div>
+    </div>
+
+    <div id="fulltime" class="overlay hidden">
+      <div class="panel">
+        <h2 id="result-title">Full time</h2>
+        <p id="result-score" class="result-score"></p>
+        <p id="rematch-status" class="status"></p>
+        <button id="again" class="primary">Play again</button>
+        <button id="to-menu">Menu</button>
+      </div>
+    </div>
+
+    <script type="module" src="/client/main.ts"></script>
+  </body>
+</html>
