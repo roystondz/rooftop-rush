@@ -135,12 +135,12 @@ describe('game server', () => {
     [a, b, c].forEach((x) => x.close());
   });
 
-  it('sends both players the same snapshots, about 30 per second', async () => {
+  it('sends both players the same snapshots, about 60 per second', async () => {
     const [a, b] = await startMatch();
     await new Promise((r) => setTimeout(r, 1000));
     const snapsA = a.messages.filter((m) => m.t === 'snap').length;
-    expect(snapsA).toBeGreaterThan(20);
-    expect(snapsA).toBeLessThan(40);
+    expect(snapsA).toBeGreaterThan(45);
+    expect(snapsA).toBeLessThan(75);
     const tick = a.latestSnap().s.tick;
     const same = await b.waitFor('snap', (m) => m.s.tick === tick);
     expect(same.s.p).toEqual(a.latestSnap().s.p);

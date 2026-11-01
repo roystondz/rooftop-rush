@@ -545,6 +545,14 @@ function takeBall(w: World, p: Player): void {
 
 // --- ball -------------------------------------------------------------------
 
+/**
+ * One tick of a loose ball's flight (gravity, curl, bounces off walls and posts) without any
+ * players touching it. The browser uses this to show your own kicks before the server confirms.
+ */
+export function flyLooseBall(w: World): void {
+  if (w.ball.owner < 0) updateBall(w);
+}
+
 function updateBall(w: World): void {
   const b = w.ball;
   const r = BALL.radius;

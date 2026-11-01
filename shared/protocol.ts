@@ -5,8 +5,8 @@ import { clamp, lerp, wrapAngle } from './math';
 import type { Input, MatchEvent, Phase, Team, World } from './types';
 
 export const DEFAULT_PORT = 2567;
-/** The server sends a snapshot every this many ticks (2 = 30 per second). */
-export const SNAPSHOT_EVERY = 2;
+/** The server sends a snapshot every this many ticks (1 = 60 per second). */
+export const SNAPSHOT_EVERY = 1;
 
 // --- inputs -------------------------------------------------------------------
 
