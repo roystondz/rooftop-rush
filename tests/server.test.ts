@@ -91,6 +91,27 @@ describe('game server', () => {
     b.close();
   });
 
+  it("tells both players each other's team names, cleaned up", async () => {
+    const a = await TestClient.connect(server.port);
+    a.send({ t: 'create', name: '  red lions ' });
+    const room = await a.waitFor('room');
+    const b = await TestClient.connect(server.port);
+    b.send({ t: 'join', code: room.code, name: '<i>Tigers</i> 🐯' });
+    const startA = await a.waitFor('start');
+    const startB = await b.waitFor('start');
+    expect(startA.names).toEqual(['RED LIONS', 'ITIGERSI']);
+    expect(startB.names).toEqual(startA.names);
+    a.close();
+    b.close();
+  });
+
+  it('uses the default names when nobody picks one', async () => {
+    const [a, b] = await startMatch();
+    expect((await a.waitFor('start')).names).toEqual(['SKYLINE', 'NEON']);
+    a.close();
+    b.close();
+  });
+
   it('pairs two quick-match players together', async () => {
     const a = await TestClient.connect(server.port);
     const b = await TestClient.connect(server.port);

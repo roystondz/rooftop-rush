@@ -1,10 +1,12 @@
 // All sounds are synthesised with the Web Audio API, so there are no audio files to license.
+import { Music } from './music';
 
 export class Sfx {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
-  private crowd: { gain: GainNode } | null = null;
+  private music: Music | null = null;
+  private musicWanted = false;
   muted = false;
 
   /** Browsers only allow audio after a click or key press, so call this from one. */
@@ -22,7 +24,20 @@ export class Sfx {
     this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = this.noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    this.startCrowd();
+    this.music = new Music(ctx, this.master);
+    if (this.musicWanted) this.music.start();
+  }
+
+  /** Background music on or off. Remembered until audio is allowed to start. */
+  setMusic(on: boolean): void {
+    this.musicWanted = on;
+    if (!this.music) return;
+    if (on) this.music.start();
+    else this.music.stop();
+  }
+
+  get musicPlaying(): boolean {
+    return this.music?.playing ?? false;
   }
 
   setMuted(muted: boolean): void {
@@ -85,7 +100,7 @@ export class Sfx {
   }
 
   goal(): void {
-    this.burst(2.5, 900, 0.9, 0.3);
+    this.burst(2, 650, 0.35, 0.25); // crowd roar: soft and short
     [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => this.tone(f, 'triangle', 0.4, 0.15), i * 90));
   }
 
@@ -93,31 +108,12 @@ export class Sfx {
     [660, 880, 1320].forEach((f, i) => setTimeout(() => this.tone(f, 'square', 0.15, 0.06), i * 70));
   }
 
-  /** Raises the crowd for a moment (near misses, big chances). */
+  /**
+   * A short "ooh" from the crowd for near misses and saves. (There used to be a constant crowd
+   * noise underneath everything; it sounded like a buzz, so now the crowd only reacts.)
+   */
   crowdSwell(amount = 1): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.crowd) return;
-    const g = this.crowd.gain.gain;
-    g.cancelScheduledValues(ctx.currentTime);
-    g.setTargetAtTime(0.05 + 0.12 * amount, ctx.currentTime, 0.1);
-    g.setTargetAtTime(0.05, ctx.currentTime + 0.8, 0.6);
-  }
-
-  private startCrowd(): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.master || !this.noise) return;
-    const src = ctx.createBufferSource();
-    src.buffer = this.noise;
-    src.loop = true;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 700;
-    filter.Q.value = 0.6;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.05;
-    src.connect(filter).connect(gain).connect(this.master);
-    src.start();
-    this.crowd = { gain };
+    this.burst(1.1, 550, 0.18 * amount, 0.3);
   }
 
   private thump(freq: number, dur: number, vol: number): void {

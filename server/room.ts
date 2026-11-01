@@ -4,6 +4,7 @@ import { Bot, BOT_SKILLS } from '../shared/bot';
 import { DT } from '../shared/constants';
 import { autoSwitch, autoSwitchDefending, switchToNearest, SwitchTimer, type Controlled } from '../shared/control';
 import { makeSnapshot, SNAPSHOT_EVERY, unpackInput, type ClientMessage, type ServerMessage } from '../shared/protocol';
+import { teamNames } from '../shared/names';
 import { createWorld, step } from '../shared/sim';
 import { NO_INPUT } from '../shared/types';
 import type { Input, MatchEvent, Team, World } from '../shared/types';
@@ -26,6 +27,8 @@ export interface Seat {
   lastSeq: number; // highest input number received
   ack: number; // input number last used by the simulation
   wantsRematch: boolean;
+  /** The team name this player asked for (cleaned when the match starts). */
+  name?: string;
 }
 
 export class Room {
@@ -52,10 +55,10 @@ export class Room {
   }
 
   /** Seats a new client. Returns null when the room is full. */
-  join(send: (m: ServerMessage) => void): Seat | null {
+  join(send: (m: ServerMessage) => void, name?: string): Seat | null {
     const team: Team | -1 = this.seats[0] === null ? 0 : this.seats[1] === null ? 1 : -1;
     if (team === -1) return null;
-    const seat: Seat = { team, send, queue: [], last: { ...NO_INPUT }, lastSeq: -1, ack: -1, wantsRematch: false };
+    const seat: Seat = { team, send, queue: [], last: { ...NO_INPUT }, lastSeq: -1, ack: -1, wantsRematch: false, name };
     this.seats[team] = seat;
     send({ t: 'room', code: this.code, team, isPublic: this.isPublic });
     if (this.playerCount === 2) this.start();
@@ -106,10 +109,11 @@ export class Room {
     this.controlled = [0, 1].map((team) => w.players.find((p) => p.team === team && p.role === 'attacker')!.id);
     this.events = [];
     this.switchTimer = new SwitchTimer();
+    const names = teamNames(this.seats[0]?.name, this.seats[1]?.name);
     for (const s of this.seats) {
       if (!s) continue;
       Object.assign(s, { queue: [], last: { ...NO_INPUT }, wantsRematch: false });
-      s.send({ t: 'start', team: s.team });
+      s.send({ t: 'start', team: s.team, names });
     }
     this.startLoop();
   }

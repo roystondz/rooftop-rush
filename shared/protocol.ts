@@ -137,9 +137,9 @@ export function lerpSnapshots(w: World, a: Snapshot, b: Snapshot, t: number): vo
 // --- messages -----------------------------------------------------------------
 
 export type ClientMessage =
-  | { t: 'quick' }
-  | { t: 'create' }
-  | { t: 'join'; code: string }
+  | { t: 'quick'; name?: string }
+  | { t: 'create'; name?: string }
+  | { t: 'join'; code: string; name?: string }
   | { t: 'input'; seq: number; i: PackedInput }
   | { t: 'switch' }
   | { t: 'rematch' }
@@ -148,7 +148,7 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { t: 'room'; code: string; team: Team; isPublic: boolean }
-  | { t: 'start'; team: Team }
+  | { t: 'start'; team: Team; names: [string, string] }
   | { t: 'snap'; s: Snapshot; ack: number }
   | { t: 'rematch'; team: Team }
   | { t: 'left' }
@@ -168,17 +168,19 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   }
   if (typeof m !== 'object' || m === null) return null;
   const msg = m as Record<string, unknown>;
+  // A team name is optional; the server cleans it (shared/names.ts) before anyone sees it.
+  const name = typeof msg.name === 'string' ? msg.name.slice(0, 64) : undefined;
   switch (msg.t) {
     case 'quick':
     case 'create':
+      return name === undefined ? { t: msg.t } : { t: msg.t, name };
     case 'switch':
     case 'rematch':
     case 'leave':
       return { t: msg.t };
     case 'join':
-      return typeof msg.code === 'string' && /^[A-Za-z]{4}$/.test(msg.code)
-        ? { t: 'join', code: msg.code.toUpperCase() }
-        : null;
+      if (typeof msg.code !== 'string' || !/^[A-Za-z]{4}$/.test(msg.code)) return null;
+      return name === undefined ? { t: 'join', code: msg.code.toUpperCase() } : { t: 'join', code: msg.code.toUpperCase(), name };
     case 'ping':
       return isNum(msg.at) ? { t: 'ping', at: msg.at } : null;
     case 'input': {

@@ -3,7 +3,6 @@ import type { Player, World } from '../shared/types';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export const TEAM_NAMES = ['SKYLINE', 'NEON'] as const;
 
 export class Hud {
   private root = $('hud');
@@ -18,6 +17,10 @@ export class Hud {
   private msgTimer = 0;
 
   /** `you` marks which team is yours in online play; leave it out for local games. */
+  setTeamNames(names: readonly [string, string]): void {
+    this.teamLabels.forEach((el, t) => (el.textContent = names[t]));
+  }
+
   show(you?: 0 | 1): void {
     this.root.classList.remove('hidden');
     this.teamLabels.forEach((el, t) => el.classList.toggle('you', t === you));

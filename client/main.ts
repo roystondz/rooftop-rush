@@ -1,15 +1,17 @@
 import './style.css';
 import type { Difficulty } from '../shared/bot';
+import { DEFAULT_TEAM_NAMES, MAX_TEAM_NAME, teamNames } from '../shared/names';
 import type { World } from '../shared/types';
 import { Sfx } from './audio';
 import { Effects } from './effects';
 import { Game } from './game';
-import { Hud, TEAM_NAMES } from './hud';
+import { Hud } from './hud';
 import { InputManager } from './input';
 import { isTouchDevice } from './joystick';
 import { Connection, lagFromUrl, serverUrl } from './net';
 import { OnlineGame } from './online';
 import { Renderer } from './renderer';
+import { loadSettings, saveSettings } from './settings';
 import { TouchControls } from './touch';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -28,6 +30,9 @@ const game = new Game(renderer, hud, input, effects);
 let online: OnlineGame | null = null;
 let mode: 'menu' | 'local' | 'online' = 'menu';
 let difficulty: Difficulty = 'normal';
+const settings = loadSettings();
+/** Names shown for the current match: [left team, right team]. */
+let names: [string, string] = [...DEFAULT_TEAM_NAMES];
 // Testing aids: ?lag=200&jitter=40 fakes a slow connection, ?debug shows prediction details.
 const lag = lagFromUrl();
 const debugNet = new URLSearchParams(location.search).has('debug');
@@ -79,12 +84,19 @@ function enterFullscreen(): void {
     });
 }
 
+function useNames(next: [string, string]): void {
+  names = next;
+  hud.setTeamNames(names);
+  effects.names = names;
+}
+
 function playLocal(): void {
-  sfx.unlock();
+  startAudio();
   enterFullscreen();
   leaveOnline();
   mode = 'local';
   show(null);
+  useNames(teamNames(settings.teamName, undefined));
   game.start(difficulty);
 }
 
@@ -111,7 +123,7 @@ function setPaused(paused: boolean): void {
 function showResult(w: World, myTeam: 0 | 1): void {
   const [a, b] = w.score;
   $('result-title').textContent = w.winner === myTeam ? 'You win!' : w.winner === -1 ? 'Draw' : 'You lose';
-  $('result-score').textContent = `${TEAM_NAMES[0]} ${a} – ${b} ${TEAM_NAMES[1]}`;
+  $('result-score').textContent = `${names[0]} ${a} – ${b} ${names[1]}`;
   $('again').textContent = mode === 'online' ? 'Rematch' : 'Play again';
   $('rematch-status').textContent = '';
   show('fulltime');
@@ -130,7 +142,7 @@ function leaveOnline(): void {
 }
 
 async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<void> {
-  sfx.unlock();
+  startAudio();
   enterFullscreen();
   leaveOnline();
   setStatus('Connecting…');
@@ -149,9 +161,10 @@ async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<v
       $('waiting-title').textContent = isPublic ? 'Finding an opponent…' : 'Waiting for your friend…';
       show('waiting');
     },
-    start(team) {
+    start(team, matchNames) {
       show(null);
-      hud.message(`YOU ARE ${TEAM_NAMES[team]}`, team === 0 ? 'Attack to the right →' : '← Attack to the left', 2);
+      useNames(matchNames);
+      hud.message(`YOU ARE ${names[team]}`, team === 0 ? 'Attack to the right →' : '← Attack to the left', 2);
     },
     rematchRequested(team) {
       if (team !== online?.team) $('rematch-status').textContent = 'Your opponent wants a rematch!';
@@ -179,9 +192,11 @@ async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<v
       show('online');
     },
   });
-  if (first === 'quick') conn.send({ t: 'quick' });
-  else if (first === 'create') conn.send({ t: 'create' });
-  else conn.send({ t: 'join', code: first.join });
+  // Send your chosen name; the server cleans it and tells both players the final names.
+  const name = settings.teamName || undefined;
+  if (first === 'quick') conn.send({ t: 'quick', name });
+  else if (first === 'create') conn.send({ t: 'create', name });
+  else conn.send({ t: 'join', code: first.join, name });
   setStatus('');
 }
 
@@ -238,11 +253,58 @@ $('quit').addEventListener('click', toMenu);
 $('resume').addEventListener('click', () => setPaused(false));
 $('pause-btn').addEventListener('click', () => setPaused($('pause').classList.contains('hidden')));
 $('mute-btn').addEventListener('click', toggleMute);
+$('music-btn').addEventListener('click', toggleMusic);
+$('music-toggle').addEventListener('click', () => {
+  startAudio();
+  toggleMusic();
+});
+
+// --- team name ----------------------------------------------------------------------
+
+const nameInput = $<HTMLInputElement>('team-name');
+nameInput.maxLength = MAX_TEAM_NAME;
+nameInput.value = settings.teamName;
+nameInput.addEventListener('input', () => {
+  settings.teamName = nameInput.value;
+  saveSettings(settings);
+});
+nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') playLocal();
+});
+
+// --- sound and music ----------------------------------------------------------------
+
+/** Browsers only allow sound after a click or tap, so audio starts with the first one. */
+function startAudio(): void {
+  sfx.unlock();
+  sfx.setMusic(settings.music);
+}
 
 function toggleMute(): void {
   sfx.setMuted(!sfx.muted);
-  $('mute-btn').classList.toggle('muted', sfx.muted);
+  settings.muted = sfx.muted;
+  saveSettings(settings);
+  showSoundState();
 }
+
+function toggleMusic(): void {
+  settings.music = !settings.music;
+  sfx.setMusic(settings.music);
+  saveSettings(settings);
+  showSoundState();
+}
+
+function showSoundState(): void {
+  $('mute-btn').classList.toggle('muted', sfx.muted);
+  $('music-btn').classList.toggle('off', !settings.music);
+  $('music-toggle').classList.toggle('off', !settings.music);
+  $('music-toggle').textContent = `Music: ${settings.music ? 'on' : 'off'}`;
+}
+
+sfx.setMuted(settings.muted);
+showSoundState();
+// The first click anywhere (e.g. on a menu button) starts the music, if it's switched on.
+window.addEventListener('pointerdown', startAudio, { once: true });
 
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return; // typing a room code
@@ -258,5 +320,5 @@ document.addEventListener('visibilitychange', () => {
 
 if (import.meta.env.DEV) {
   // Handy for poking at the game from the browser console.
-  Object.assign(window, { __rr: { game, get online() { return online; }, get mode() { return mode; } } });
+  Object.assign(window, { __rr: { game, sfx, get online() { return online; }, get mode() { return mode; } } });
 }

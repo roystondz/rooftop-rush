@@ -33,6 +33,7 @@
       <span id="ping" class="ping hidden"></span>
       <button id="pause-btn" class="icon-btn" title="Pause (Esc)">II</button>
       <button id="mute-btn" class="icon-btn" title="Sound on/off (M)">♪</button>
+      <button id="music-btn" class="icon-btn" title="Music on/off">♫</button>
     </div>
 
     <div id="touch" class="hidden">
@@ -62,6 +63,10 @@
       <div class="panel">
         <h1>ROOFTOP <em>RUSH</em></h1>
         <p class="tag">3v3 cage football above the city</p>
+        <label class="name-field">
+          <span>Your team name</span>
+          <input id="team-name" maxlength="14" placeholder="SKYLINE" autocomplete="off" spellcheck="false" />
+        </label>
         <div class="difficulty">
           <button data-difficulty="easy">Easy</button>
           <button data-difficulty="normal" class="selected">Normal</button>
@@ -84,6 +89,7 @@
           <div><kbd>Esc</kbd> pause · <kbd>M</kbd> sound</div>
           <div class="pad">Gamepad: stick move · A pass · X shoot · B tackle · RT sprint · LB switch</div>
         </div>
+        <button id="music-toggle" class="toggle">Music: on</button>
         <p class="hint">Passes and tackles fill your <b>Rush</b> meter. When it's full, your next shot is a power shot.</p>
       </div>
     </div>

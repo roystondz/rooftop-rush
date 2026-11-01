@@ -47,6 +47,10 @@ npm run dev
 
 Passes and tackles fill your **Rush** meter. When it's full, your next shot is a power shot.
 
+**Team name:** type your team's name on the main menu (up to 14 letters, numbers or spaces). It's remembered on this device. Online, both players see each other's names; the server tidies them up first, and two identical names are told apart.
+
+**Sound:** ♪ turns all sound on or off (or press M), ♫ turns the background music on or off. The music is generated live in the browser, so there are no audio files and nothing to license.
+
 **Kickoffs:** the kicker starts with the ball and must pass to a teammate first. You can turn on the spot to aim, but not dribble or shoot, and the other team must stay outside the centre circle until the pass. If nobody passes within 6 seconds, the pass is made for you.
 
 **Switching:** you automatically take over the player who receives your pass or wins the ball. When defending, you're also switched to a teammate who is much closer to the ball (at most once every 0.75 s, so it never fights a manual switch). The **Q** badge shows who pressing Q would give you.
@@ -63,6 +67,7 @@ shared/            Runs the same in the browser and on the server. No graphics, 
   protocol.ts      Online messages, snapshots, and the checks that reject bad client messages.
   prediction.ts    Client prediction and reconciliation for your own player online.
   control.ts       Which player each human controls (auto-switch on pass and possession).
+  names.ts         Cleaning and pairing team names.
 server/            Node.js only.
   server.ts        WebSocket server: quick match, room codes, rate limiting.
   room.ts          One match: runs the sim at 60 ticks/s, sends snapshots 30 times a second.
@@ -77,7 +82,9 @@ client/            Browser only.
   input.ts         Keyboard, gamepad and touch → Input.
   touch.ts         On-screen joystick and buttons for phones (multi-touch).
   joystick.ts      Joystick maths (dead zone, push-to-sprint), kept DOM-free for testing.
-  audio.ts         Sounds, generated in code (no audio files).
+  audio.ts         Sound effects, generated in code (no audio files).
+  music.ts         Soft background music, generated live (chords, bass, arpeggio).
+  settings.ts      Remembers team name, sound and music choices on this device.
   hud.ts           Score, clock, Rush and power meters.
 tests/             Automated tests: rules, protocol, and the real server with test clients.
 scripts/botmatch.ts  Headless bot matches for balancing.

@@ -27,7 +27,7 @@ const PING_EVERY = 2;
 
 export interface OnlineCallbacks {
   room(code: string, isPublic: boolean): void;
-  start(team: Team): void;
+  start(team: Team, names: [string, string]): void;
   rematchRequested(team: Team): void;
   opponentLeft(): void;
   error(message: string): void;
@@ -189,7 +189,7 @@ export class OnlineGame {
         this.effects.reset(m.team);
         this.renderer.setupPlayers(this.view);
         this.hud.show(m.team);
-        this.on.start(m.team);
+        this.on.start(m.team, m.names);
         break;
       case 'snap':
         this.snaps.push(m.s);

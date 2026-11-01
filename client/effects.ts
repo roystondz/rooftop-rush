@@ -1,11 +1,13 @@
 // Turns match events into sounds, screen shake and HUD messages. Shared by local and online play.
 import type { MatchEvent, Phase, Team, World } from '../shared/types';
 import type { Sfx } from './audio';
-import { TEAM_NAMES, type Hud } from './hud';
+import { DEFAULT_TEAM_NAMES } from '../shared/names';
+import type { Hud } from './hud';
 import type { Renderer } from './renderer';
 
 export class Effects {
   myTeam: Team = 0;
+  names: [string, string] = [...DEFAULT_TEAM_NAMES];
   /** How to tell the player to pass: "press K" on a keyboard, "tap PASS" on a phone. */
   passHint = 'press K';
   onFullTime: (w: World) => void = () => {};
@@ -72,7 +74,7 @@ export class Effects {
         this.sfx.goal();
         this.renderer.addShake(0.9);
         this.renderer.goalBurst(team, w.ball.x);
-        this.hud.message(e.ownGoal ? 'OWN GOAL' : 'GOAL!', `${TEAM_NAMES[team]} ${w.score[0]} – ${w.score[1]}`, 2.4);
+        this.hud.message(e.ownGoal ? 'OWN GOAL' : 'GOAL!', `${this.names[team]} ${w.score[0]} – ${w.score[1]}`, 2.4);
         break;
       }
       case 'rushReady':

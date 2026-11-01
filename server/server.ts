@@ -57,8 +57,8 @@ export function startServer(port: number, staticDir?: string): Promise<RunningSe
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(m));
     };
 
-    const enter = (r: Room) => {
-      const s = r.join(send);
+    const enter = (r: Room, name?: string) => {
+      const s = r.join(send, name);
       if (!s) {
         send({ t: 'error', message: 'That room is full.' });
         return;
@@ -85,17 +85,17 @@ export function startServer(port: number, staticDir?: string): Promise<RunningSe
         case 'quick': {
           if (room) return;
           const waiting = [...rooms.values()].find((r) => r.isPublic && !r.started && r.playerCount === 1);
-          enter(waiting ?? createRoom(true));
+          enter(waiting ?? createRoom(true), msg.name);
           return;
         }
         case 'create':
-          if (!room) enter(createRoom(false));
+          if (!room) enter(createRoom(false), msg.name);
           return;
         case 'join': {
           if (room) return;
           const r = rooms.get(msg.code);
           if (!r) send({ t: 'error', message: `No room with code ${msg.code}.` });
-          else enter(r);
+          else enter(r, msg.name);
           return;
         }
         case 'leave':
