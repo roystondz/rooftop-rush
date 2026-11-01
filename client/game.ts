@@ -6,6 +6,7 @@ import {
   autoSwitch,
   autoSwitchDefending,
   pressToward,
+  screenToPitch,
   startingPlayer,
   switchTarget,
   switchToNearest,
@@ -86,6 +87,7 @@ export class Game {
 
   private tick(w: World): void {
     const human = this.input.read();
+    Object.assign(human.game, screenToPitch(human.game, w)); // controls follow the penalty camera
     if (human.switchPlayer) this.handOver(switchToNearest(w, this.controlled, this.humanTeam, this.switchTimer));
 
     const me = w.players[this.controlledId];

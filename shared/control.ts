@@ -148,3 +148,23 @@ export function startingPlayer(w: World, team: Team): number {
   return w.players.find((p) => p.team === team && p.role === 'attacker')!.id;
 }
 
+/**
+ * During penalties the camera sits behind the taker, looking along the pitch toward the goal:
+ * +1 when it looks toward +x, -1 toward -x. Null when the normal side-on camera is in use.
+ */
+export function penaltyCameraForward(w: World): 1 | -1 | null {
+  if (w.mode !== 'penalties' || !w.shootout) return null;
+  return w.shootout.taker === 0 ? 1 : -1;
+}
+
+/**
+ * Turns "up/down/left/right on the screen" into a direction on the pitch for the penalty camera,
+ * so pushing right always moves (or aims) right as you see it. Other views pass input through.
+ */
+export function screenToPitch(input: { moveX: number; moveZ: number }, w: World): { moveX: number; moveZ: number } {
+  const f = penaltyCameraForward(w);
+  if (f === null) return { moveX: input.moveX, moveZ: input.moveZ };
+  // Screen up = toward the goal (along x); screen right = the camera's right-hand side (along z).
+  return { moveX: -input.moveZ * f, moveZ: input.moveX * f };
+}
+

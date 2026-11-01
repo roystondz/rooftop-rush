@@ -65,7 +65,7 @@ Passes and tackles fill your **Rush** meter. When it's full, your next shot is a
 
 **Game modes:** pick **Match** (3 minutes, 3v3) or **Penalties** on the menu; both work against bots and online. Quick match only pairs players who picked the same mode; a room code plays whatever its creator picked.
 
-**Penalties:** 5 kicks each, alternating, ending early once one side can't catch up, then sudden death. Taking: aim with the movement keys (a yellow line shows where), hold shoot for power; steer sideways while charging to curl it. In goal: move along the line, then tackle/DIVE dives the way you're pushing (no direction = spring up). Keepers have to guess or react; about 3 in 4 penalties go in.
+**Penalties:** 5 kicks each, alternating, ending early once one side can't catch up, then sudden death. The camera moves behind the taker, looking at the goal, and the controls follow it (right on screen is always right). Taking: aim left/right (a yellow line shows where), hold shoot for power; steer sideways while charging to curl it. In goal: move left/right along the line, then tackle/DIVE dives the way you're pushing (no direction = spring up). Keepers have to guess or react; about 3 in 4 penalties go in.
 
 **Kickoffs:** the kicker starts with the ball and must pass to a teammate first. You can turn on the spot to aim, but not dribble or shoot, and the other team must stay outside the centre circle until the pass. If nobody passes within 6 seconds, the pass is made for you.
 

@@ -200,3 +200,54 @@ describe('penalty shootout: who wins', () => {
     void PLAYER;
   });
 });
+
+describe('penalty camera controls', () => {
+  it('turns screen directions into pitch directions for the behind-the-taker camera', async () => {
+    const { screenToPitch, penaltyCameraForward } = await import('../shared/control');
+    const w = shootout(); // team 0 shooting toward +x
+    expect(penaltyCameraForward(w)).toBe(1);
+    // Up on screen = toward the goal; right on screen = +z.
+    expectMove(screenToPitch({ moveX: 0, moveZ: -1 }, w), 1, 0);
+    expectMove(screenToPitch({ moveX: 1, moveZ: 0 }, w), 0, 1);
+    // Team 1 shoots toward -x, so everything flips.
+    w.shootout!.taker = 1;
+    expect(penaltyCameraForward(w)).toBe(-1);
+    expectMove(screenToPitch({ moveX: 0, moveZ: -1 }, w), -1, 0);
+    expectMove(screenToPitch({ moveX: 1, moveZ: 0 }, w), 0, -1);
+  });
+
+  it('leaves controls alone in a normal match', async () => {
+    const { screenToPitch, penaltyCameraForward } = await import('../shared/control');
+    const w = createWorld();
+    expect(penaltyCameraForward(w)).toBeNull();
+    expect(screenToPitch({ moveX: 0.5, moveZ: -0.5 }, w)).toEqual({ moveX: 0.5, moveZ: -0.5 });
+  });
+
+  it('pushing right aims the kick toward the right-hand post as the taker sees it', async () => {
+    const { screenToPitch } = await import('../shared/control');
+    for (const taker of [0, 1] as const) {
+      const w = shootout();
+      w.shootout!.taker = taker;
+      // Rebuild the kick for this side by running a whole first kick if needed.
+      if (taker === 1) {
+        toWhistle(w);
+        for (let i = 0; i < Math.ceil(SHOOTOUT.timeLimit / DT) + 200 && w.shootout!.taker !== 1; i++) step(w, []);
+      }
+      const { taker: p } = penaltyDuel(w)!;
+      toWhistleIfNeeded(w);
+      for (let i = 0; i < 30; i++) step(w, only(p.id, { ...idle, ...screenToPitch({ moveX: 1, moveZ: 0 }, w) }));
+      // "Right" from behind the taker: +z when shooting toward +x, -z when shooting toward -x.
+      const lateral = Math.sin(p.facing) * (taker === 0 ? 1 : -1);
+      expect(lateral).toBeGreaterThan(0.4);
+    }
+  });
+});
+
+function expectMove(m: { moveX: number; moveZ: number }, x: number, z: number): void {
+  expect(m.moveX).toBeCloseTo(x);
+  expect(m.moveZ).toBeCloseTo(z);
+}
+
+function toWhistleIfNeeded(w: World): void {
+  for (let i = 0; i < 200 && w.phase !== 'playing'; i++) step(w, []);
+}

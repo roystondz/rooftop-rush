@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { BALL, PITCH, PLAYER } from '../shared/constants';
 import { clamp, lerp, mulberry32 } from '../shared/math';
+import { penaltyCameraForward } from '../shared/control';
 import type { World } from '../shared/types';
 
 const HALF_L = PITCH.length / 2;
@@ -61,6 +62,8 @@ export class Renderer {
   private nets: THREE.Group[] = [];
   private netPulse = [0, 0];
   private camX = 0;
+  /** Penalty camera, eased between kicks so it glides from one end to the other. */
+  private penCam: { pos: THREE.Vector3; look: THREE.Vector3 } | null = null;
   private shake = 0;
   private time = 0;
   private tmp = new THREE.Vector3();
@@ -215,7 +218,7 @@ export class Renderer {
     this.updateConfetti(frameDt);
     this.updateNets(frameDt);
     this.updateAimLine(w, controlledId);
-    this.updateCamera(bx, bz, frameDt, w.mode === 'penalties');
+    this.updateCamera(bx, bz, frameDt, w);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -626,16 +629,33 @@ export class Renderer {
     this.aimLine.rotation.set(-Math.PI / 2, 0, me.facing);
   }
 
-  private updateCamera(bx: number, bz: number, dt: number, penalties = false): void {
+  private updateCamera(bx: number, bz: number, dt: number, w: World): void {
     const portrait = this.camera.aspect < 1;
-    // Penalties: closer, looking at the goal being shot at.
-    const range = penalties ? 13.5 : 11;
-    this.camX = lerp(this.camX, clamp(bx * (penalties ? 1 : 0.85), -range, range), 1 - Math.exp(-3 * dt));
     this.shake = Math.max(0, this.shake - dt * 2.5);
     const sx = (Math.sin(this.time * 61) * 0.3 + Math.sin(this.time * 37) * 0.2) * this.shake;
     const sy = Math.sin(this.time * 53) * 0.3 * this.shake;
-    const height = portrait ? 36 : penalties ? 15 : 21;
-    const back = portrait ? 28 : penalties ? 18 : 25;
+
+    const forward = penaltyCameraForward(w);
+    if (forward !== null) {
+      // Penalties: behind the taker at about head height, looking straight at the goal.
+      const goalX = forward * (PITCH.length / 2);
+      const spotX = goalX - forward * 4.5;
+      const back = portrait ? 11 : 7.5;
+      const pos = new THREE.Vector3(spotX - forward * back, portrait ? 5 : 3.4, 0);
+      const look = new THREE.Vector3(goalX, 1.1, 0);
+      if (!this.penCam) this.penCam = { pos: pos.clone(), look: look.clone() };
+      const k = 1 - Math.exp(-3.5 * dt);
+      this.penCam.pos.lerp(pos, k);
+      this.penCam.look.lerp(look, k);
+      this.camera.position.set(this.penCam.pos.x + sx * 0.4, this.penCam.pos.y + sy * 0.4, this.penCam.pos.z);
+      this.camera.lookAt(this.penCam.look);
+      return;
+    }
+    this.penCam = null;
+
+    this.camX = lerp(this.camX, clamp(bx * 0.85, -11, 11), 1 - Math.exp(-3 * dt));
+    const height = portrait ? 36 : 21;
+    const back = portrait ? 28 : 25;
     this.camera.position.set(this.camX + sx, height + sy, back + bz * 0.15);
     this.camera.lookAt(this.camX, 0, bz * 0.3 + 0.5);
   }

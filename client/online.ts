@@ -13,7 +13,7 @@ import {
   type ServerMessage,
   type Snapshot,
 } from '../shared/protocol';
-import { pressToward, switchTarget } from '../shared/control';
+import { pressToward, screenToPitch, switchTarget } from '../shared/control';
 import { carriedBallPosition, createWorld } from '../shared/sim';
 import { NO_INPUT } from '../shared/types';
 import type { GameMode, Input, MatchEventType, Team, World } from '../shared/types';
@@ -111,6 +111,7 @@ export class OnlineGame {
     while (this.acc >= DT) {
       this.acc -= DT;
       const fi = this.input.read();
+      Object.assign(fi.game, screenToPitch(fi.game, this.latest)); // controls follow the penalty camera
       if (fi.switchPlayer) this.conn.send({ t: 'switch' });
       if (fi.press && Math.hypot(fi.game.moveX, fi.game.moveZ) < 0.2) {
         // Hold press: chase the ball from where we predict we are right now.

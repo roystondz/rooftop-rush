@@ -11,7 +11,7 @@ export class Effects {
   /** How to tell the player to pass: "press K" on a keyboard, "tap PASS" on a phone. */
   passHint = 'press K';
   /** How to take a penalty, and how to save one, on this device. */
-  penaltyHints = { take: 'aim with the arrows, hold J to shoot', save: 'W/S to move, L to dive' };
+  penaltyHints = { take: 'aim with the arrows, hold J to shoot', save: 'A/D to move, L to dive' };
   onFullTime: (w: World) => void = () => {};
   private lastPhase: Phase | null = null;
 
