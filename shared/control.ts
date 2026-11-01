@@ -114,3 +114,17 @@ export function autoSwitchDefending(w: World, controlled: Controlled, team: Team
   timer.mark(w, team);
   return { from: current, to: best };
 }
+
+/**
+ * "Press" (hold): run at the ball, aiming a little ahead of where it's going, so you can close
+ * down the player on it without steering. Returns the move to use while it's held.
+ */
+export function pressToward(me: { x: number; z: number }, ball: { x: number; z: number; vx: number; vz: number }) {
+  const tx = ball.x + ball.vx * 0.25;
+  const tz = ball.z + ball.vz * 0.25;
+  const dx = tx - me.x;
+  const dz = tz - me.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 0.3) return { moveX: 0, moveZ: 0, sprint: false };
+  return { moveX: dx / d, moveZ: dz / d, sprint: d > 3 };
+}

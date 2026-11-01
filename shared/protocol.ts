@@ -17,11 +17,17 @@ const SPRINT = 1;
 const SHOOT = 2;
 const PASS = 4;
 const TACKLE = 8;
+const THROUGH = 16;
 
 const round = (v: number, places: number) => Math.round(v * 10 ** places) / 10 ** places;
 
 export function packInput(i: Input): PackedInput {
-  const buttons = (i.sprint ? SPRINT : 0) | (i.shoot ? SHOOT : 0) | (i.pass ? PASS : 0) | (i.tackle ? TACKLE : 0);
+  const buttons =
+    (i.sprint ? SPRINT : 0) |
+    (i.shoot ? SHOOT : 0) |
+    (i.pass ? PASS : 0) |
+    (i.tackle ? TACKLE : 0) |
+    (i.through ? THROUGH : 0);
   return [round(i.moveX, 2), round(i.moveZ, 2), buttons];
 }
 
@@ -34,6 +40,7 @@ export function unpackInput(p: PackedInput): Input {
     shoot: (b & SHOOT) !== 0,
     pass: (b & PASS) !== 0,
     tackle: (b & TACKLE) !== 0,
+    through: (b & THROUGH) !== 0,
   };
 }
 
@@ -187,7 +194,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const i = msg.i;
       if (!isNum(msg.seq) || !Array.isArray(i) || i.length !== 3 || !i.every(isNum)) return null;
       const buttons = i[2] as number;
-      if (!Number.isInteger(buttons) || buttons < 0 || buttons > 15) return null;
+      if (!Number.isInteger(buttons) || buttons < 0 || buttons > 31) return null;
       return { t: 'input', seq: msg.seq, i: [i[0] as number, i[1] as number, buttons] };
     }
     default:

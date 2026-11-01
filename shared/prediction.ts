@@ -155,7 +155,7 @@ export class KickPredictor {
     // Only when we have the ball in open play. (Kickoff rules are applied by running the real kick code below.)
     if (latest.phase !== 'playing' || latest.b[6] !== me.id) return null;
     const releasing = me.charging && !input.shoot;
-    const passing = input.pass && !previous.pass && !me.charging;
+    const passing = ((input.pass && !previous.pass) || (!!input.through && !previous.through)) && !me.charging;
     if (!releasing && !passing) return null;
 
     const w = this.scratch;
@@ -163,6 +163,7 @@ export class KickPredictor {
     Object.assign(w.players[me.id], me, {
       prevShoot: previous.shoot,
       prevPass: previous.pass,
+      prevThrough: !!previous.through,
       prevTackle: previous.tackle,
       kickCooldown: 0,
       stun: 0,

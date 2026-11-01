@@ -204,6 +204,7 @@ function makePlayer(id: number, team: Team, role: Role): Player {
     stun: 0,
     prevShoot: false,
     prevPass: false,
+    prevThrough: false,
     prevTackle: false,
   };
 }
@@ -286,6 +287,7 @@ function updatePlayer(w: World, p: Player, inp: Input): void {
     // Taking the kickoff: stand still, turn to aim, and pass. No dribbling or shooting.
     holdForKickoff(p, inp);
     if (inp.pass && !p.prevPass) pass(w, p);
+    else if (inp.through && !p.prevThrough) pass(w, p, true);
     rememberButtons(p, inp);
     return;
   }
@@ -306,8 +308,10 @@ function updatePlayer(w: World, p: Player, inp: Input): void {
     p.charge = 0;
   }
 
-  if (inp.pass && !p.prevPass && !p.charging && (w.ball.owner === p.id || canHitFirstTime(w, p))) {
-    pass(w, p);
+  const passPressed = inp.pass && !p.prevPass;
+  const throughPressed = !!inp.through && !p.prevThrough;
+  if ((passPressed || throughPressed) && !p.charging && (w.ball.owner === p.id || canHitFirstTime(w, p))) {
+    pass(w, p, throughPressed && !passPressed);
   }
 
   if (inp.tackle && !p.prevTackle && w.ball.owner !== p.id && p.tackleCooldown <= 0) {
@@ -382,6 +386,7 @@ export function carriedBallPosition(p: Player): { x: number; z: number } {
 function rememberButtons(p: Player, inp: Input): void {
   p.prevShoot = inp.shoot;
   p.prevPass = inp.pass;
+  p.prevThrough = !!inp.through;
   p.prevTackle = inp.tackle;
 }
 
@@ -470,7 +475,8 @@ function shoot(w: World, p: Player, lateral: number): void {
   emit(w, { type: power ? 'powerShot' : 'shot', player: p.id, team: p.team, strength: c });
 }
 
-function pass(w: World, p: Player): void {
+/** `through`: play it into the space ahead of the teammate, for them to run onto. */
+function pass(w: World, p: Player, through = false): void {
   w.kickoffPending = false;
   const choice = bestPassTarget(w, p, 1.5);
   if (!choice) {
@@ -480,13 +486,21 @@ function pass(w: World, p: Player): void {
     return;
   }
   const mate = choice.player;
-  const tx = mate.x + mate.vx * PASS.lead;
-  const tz = mate.z + mate.vz * PASS.lead;
+  const lead = through ? PASS.throughLead : PASS.lead;
+  const tx = clamp(
+    mate.x + mate.vx * lead + (through ? attackDir(p.team) * PASS.throughSpace : 0),
+    -HALF_L + 1,
+    HALF_L - 1,
+  );
+  const tz = clamp(mate.z + mate.vz * lead, -HALF_W + 1, HALF_W - 1);
   const dx = tx - p.x;
   const dz = tz - p.z;
   const dist = Math.max(0.01, Math.hypot(dx, dz));
   const lofted = dist > PASS.loftDistance;
-  const speed = clamp(PASS.minSpeed + dist * PASS.speedPerMeter, PASS.minSpeed, PASS.maxSpeed) * (lofted ? 0.8 : 1);
+  const speed =
+    clamp(PASS.minSpeed + dist * PASS.speedPerMeter, PASS.minSpeed, PASS.maxSpeed) *
+    (lofted ? 0.8 : 1) *
+    (through ? PASS.throughSpeedFactor : 1);
   p.facing = Math.atan2(dz, dx);
   kickBall(w, p, 'pass', (dx / dist) * speed, lofted ? PASS.loftLift : PASS.lift, (dz / dist) * speed, 0, mate.id);
   emit(w, { type: 'pass', player: p.id, team: p.team, target: mate.id });

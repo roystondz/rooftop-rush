@@ -1,31 +1,69 @@
 // On-screen controls for phones and tablets: a floating joystick on the left half of the
-// screen and action buttons on the right. Several fingers can be down at once.
+// screen and four action buttons on the right. Like FC Mobile and eFootball, the buttons change
+// job with the situation: shoot/pass/through ball when your team has the ball, tackle/switch/
+// press when defending, and shoot or dive during penalties. Several fingers can be down at once.
 import { knobOffset, readStick, SPRINT_PUSH } from './joystick';
 
 const STICK_RADIUS = 56; // pixels
 
-type Button = 'shoot' | 'pass' | 'tackle' | 'sprint' | 'switch';
+export type Action = 'shoot' | 'pass' | 'through' | 'tackle' | 'switch' | 'press' | 'sprint';
+type Slot = 'main' | 'second' | 'third' | 'fourth';
+export type TouchMode = 'attack' | 'defend' | 'penaltyTaker' | 'penaltyKeeper' | 'idle';
+
+interface ButtonJob {
+  action: Action;
+  label: string;
+  hint?: string; // small text under the label
+}
+
+/** What each button does in each situation. A missing slot is hidden. */
+const LAYOUTS: Record<TouchMode, Partial<Record<Slot, ButtonJob>>> = {
+  attack: {
+    main: { action: 'shoot', label: 'SHOOT', hint: 'hold' },
+    second: { action: 'pass', label: 'PASS' },
+    third: { action: 'through', label: 'THROUGH' },
+    fourth: { action: 'sprint', label: 'SPRINT' },
+  },
+  defend: {
+    main: { action: 'tackle', label: 'TACKLE' },
+    second: { action: 'switch', label: 'SWITCH', hint: 'Q' },
+    third: { action: 'press', label: 'PRESS', hint: 'hold' },
+    fourth: { action: 'sprint', label: 'SPRINT' },
+  },
+  penaltyTaker: {
+    main: { action: 'shoot', label: 'SHOOT', hint: 'hold' },
+  },
+  penaltyKeeper: {
+    main: { action: 'tackle', label: 'DIVE', hint: 'stick = side' },
+  },
+  idle: {},
+};
 
 export interface TouchState {
   moveX: number;
   moveZ: number;
   sprint: boolean;
   shoot: boolean; // held
+  press: boolean; // held
   pass: boolean; // tapped since the last read
+  through: boolean;
   tackle: boolean;
   switchPlayer: boolean;
 }
 
 export class TouchControls {
   readonly root: HTMLElement;
+  mode: TouchMode = 'attack';
   private base: HTMLElement;
   private knob: HTMLElement;
+  private buttons = new Map<Slot, HTMLButtonElement>();
   private stickPointer: number | null = null;
   private stickOrigin = { x: 0, y: 0 };
   private stick = { moveX: 0, moveZ: 0, magnitude: 0 };
-  private held = new Set<Button>();
-  private tapped = new Set<Button>();
-  private buttonPointers = new Map<number, Button>();
+  private held = new Set<Action>();
+  private tapped = new Set<Action>();
+  /** Which action each finger pressed, decided when it touched down (so a mode change mid-press is safe). */
+  private fingers = new Map<number, { action: Action; slot: Slot }>();
 
   constructor() {
     this.root = document.getElementById('touch')!;
@@ -38,24 +76,27 @@ export class TouchControls {
     zone.addEventListener('pointerup', (e) => this.stickUp(e));
     zone.addEventListener('pointercancel', (e) => this.stickUp(e));
 
-    this.root.querySelectorAll<HTMLElement>('[data-button]').forEach((el) => {
-      const name = el.dataset.button as Button;
+    this.root.querySelectorAll<HTMLButtonElement>('[data-slot]').forEach((el) => {
+      const slot = el.dataset.slot as Slot;
+      this.buttons.set(slot, el);
       el.addEventListener('pointerdown', (e) => {
         e.preventDefault();
+        const job = LAYOUTS[this.mode][slot];
+        if (!job) return;
         capture(el, e.pointerId);
-        this.buttonPointers.set(e.pointerId, name);
-        this.held.add(name);
-        this.tapped.add(name);
+        this.fingers.set(e.pointerId, { action: job.action, slot });
+        this.held.add(job.action);
+        this.tapped.add(job.action);
         el.classList.add('down');
         navigator.vibrate?.(8);
       });
       const release = (e: PointerEvent) => {
-        if (this.buttonPointers.get(e.pointerId) !== name) return;
-        this.buttonPointers.delete(e.pointerId);
-        if (![...this.buttonPointers.values()].includes(name)) {
-          this.held.delete(name);
-          el.classList.remove('down');
-        }
+        const finger = this.fingers.get(e.pointerId);
+        if (!finger) return;
+        this.fingers.delete(e.pointerId);
+        const stillHeld = [...this.fingers.values()];
+        if (!stillHeld.some((f) => f.action === finger.action)) this.held.delete(finger.action);
+        if (!stillHeld.some((f) => f.slot === finger.slot)) el.classList.remove('down');
       };
       el.addEventListener('pointerup', release);
       el.addEventListener('pointercancel', release);
@@ -63,11 +104,32 @@ export class TouchControls {
 
     // Long-presses must not open the browser's copy/save menu mid-match.
     this.root.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.setMode('attack', true);
   }
 
   show(visible: boolean): void {
     this.root.classList.toggle('hidden', !visible);
     if (!visible) this.releaseAll();
+  }
+
+  /** Relabels the buttons for the situation (attacking, defending, penalties). */
+  setMode(mode: TouchMode, force = false): void {
+    if (mode === this.mode && !force) return;
+    this.mode = mode;
+    this.root.dataset.mode = mode;
+    for (const [slot, el] of this.buttons) {
+      const job = LAYOUTS[mode][slot];
+      el.classList.toggle('gone', !job);
+      el.dataset.action = job?.action ?? '';
+      el.innerHTML = '';
+      if (!job) continue;
+      el.append(job.label);
+      if (job.hint) {
+        const small = document.createElement('small');
+        small.textContent = job.hint;
+        el.append(small);
+      }
+    }
   }
 
   /** Call once per game tick. Taps are reported once, even if they were shorter than a tick. */
@@ -77,7 +139,9 @@ export class TouchControls {
       moveZ: this.stick.moveZ,
       sprint: this.held.has('sprint') || this.stick.magnitude >= SPRINT_PUSH,
       shoot: this.held.has('shoot') || this.tapped.has('shoot'),
+      press: this.held.has('press'),
       pass: this.tapped.has('pass'),
+      through: this.tapped.has('through'),
       tackle: this.tapped.has('tackle'),
       switchPlayer: this.tapped.has('switch'),
     };
@@ -124,7 +188,7 @@ export class TouchControls {
     this.stick = { moveX: 0, moveZ: 0, magnitude: 0 };
     this.held.clear();
     this.tapped.clear();
-    this.buttonPointers.clear();
+    this.fingers.clear();
     this.base.classList.remove('active');
     this.root.querySelectorAll('.down').forEach((el) => el.classList.remove('down'));
   }

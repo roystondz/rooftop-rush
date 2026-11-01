@@ -13,7 +13,7 @@ import {
   type ServerMessage,
   type Snapshot,
 } from '../shared/protocol';
-import { switchTarget } from '../shared/control';
+import { pressToward, switchTarget } from '../shared/control';
 import { carriedBallPosition, createWorld } from '../shared/sim';
 import { NO_INPUT } from '../shared/types';
 import type { Input, MatchEventType, Team, World } from '../shared/types';
@@ -75,6 +75,11 @@ export class OnlineGame {
     };
   }
 
+  /** The newest state from the server (for deciding things like the touch button layout). */
+  get world(): World {
+    return this.latest;
+  }
+
   get controlledId(): number {
     const s = this.snaps[this.snaps.length - 1];
     return s ? s.controlled[this.team] : -1;
@@ -107,6 +112,11 @@ export class OnlineGame {
       this.acc -= DT;
       const fi = this.input.read();
       if (fi.switchPlayer) this.conn.send({ t: 'switch' });
+      if (fi.press && Math.hypot(fi.game.moveX, fi.game.moveZ) < 0.2) {
+        // Hold press: chase the ball from where we predict we are right now.
+        const me = { x: this.predictor.visualX, z: this.predictor.visualZ };
+        Object.assign(fi.game, pressToward(me, this.latest.ball));
+      }
       const packed = packInput(fi.game);
       const sent = unpackInput(packed); // predict with exactly what we send, rounding included
       this.predictKick(sent);

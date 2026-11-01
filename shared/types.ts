@@ -9,6 +9,8 @@ export interface Input {
   sprint: boolean;
   shoot: boolean; // held to charge, released to shoot
   pass: boolean;
+  /** Through ball: a pass into the space ahead of a teammate. Optional so older code can leave it out. */
+  through?: boolean;
   tackle: boolean;
 }
 
@@ -40,6 +42,7 @@ export interface Player {
   stun: number;
   prevShoot: boolean;
   prevPass: boolean;
+  prevThrough: boolean;
   prevTackle: boolean;
 }
 

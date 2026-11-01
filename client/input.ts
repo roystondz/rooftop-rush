@@ -4,6 +4,8 @@ import type { TouchControls } from './touch';
 export interface FrameInput {
   game: Input;
   switchPlayer: boolean;
+  /** Held "press": the game steers you toward the ball (see pressToward). */
+  press: boolean;
 }
 
 const KEYS = {
@@ -14,6 +16,8 @@ const KEYS = {
   sprint: ['ShiftLeft', 'ShiftRight'],
   shoot: ['KeyJ', 'Space'],
   pass: ['KeyK'],
+  through: ['KeyI'],
+  press: ['KeyE'],
   tackle: ['KeyL'],
   switchPlayer: ['KeyQ'],
 } as const;
@@ -54,6 +58,8 @@ export class InputManager {
     let sprint = held('sprint');
     let shoot = held('shoot') || tapped('shoot');
     let pass = tapped('pass');
+    let through = tapped('through');
+    let press = held('press');
     let tackle = tapped('tackle');
     let switchPlayer = tapped('switchPlayer');
 
@@ -69,6 +75,8 @@ export class InputManager {
       sprint ||= btn(7) || btn(5);
       shoot ||= btn(2);
       pass ||= this.padEdge(0, btn(0));
+      through ||= this.padEdge(3, btn(3));
+      press ||= btn(6);
       tackle ||= this.padEdge(1, btn(1));
       switchPlayer ||= this.padEdge(4, btn(4));
     }
@@ -82,12 +90,14 @@ export class InputManager {
       sprint ||= t.sprint;
       shoot ||= t.shoot;
       pass ||= t.pass;
+      through ||= t.through;
+      press ||= t.press;
       tackle ||= t.tackle;
       switchPlayer ||= t.switchPlayer;
     }
 
     this.pressed.clear();
-    return { game: { moveX, moveZ, sprint, shoot, pass, tackle }, switchPlayer };
+    return { game: { moveX, moveZ, sprint, shoot, pass, tackle, through }, switchPlayer, press };
   }
 
   private padPrev = new Map<number, boolean>();

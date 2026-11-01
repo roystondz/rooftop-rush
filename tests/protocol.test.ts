@@ -4,7 +4,7 @@ import { createWorld } from '../shared/sim';
 
 describe('inputs', () => {
   it('survive packing and unpacking', () => {
-    const input = { moveX: 0.707, moveZ: -1, sprint: true, shoot: false, pass: true, tackle: false };
+    const input = { moveX: 0.707, moveZ: -1, sprint: true, shoot: false, pass: true, tackle: false, through: true };
     expect(unpackInput(packInput(input))).toEqual({ ...input, moveX: 0.71 });
   });
 

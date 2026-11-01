@@ -12,7 +12,8 @@ import { Connection, lagFromUrl, serverUrl } from './net';
 import { OnlineGame } from './online';
 import { Renderer } from './renderer';
 import { loadSettings, saveSettings } from './settings';
-import { TouchControls } from './touch';
+import { TouchControls, type TouchMode } from './touch';
+import type { Team } from '../shared/types';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -71,6 +72,18 @@ function syncTouchControls(): void {
   const menuOpen = ['pause', 'fulltime', 'waiting', 'online', 'menu'].some((id) => !$(id).classList.contains('hidden'));
   document.documentElement.classList.toggle('in-match', inMatch && !menuOpen);
   touch?.show(inMatch && !menuOpen);
+  if (touch && inMatch) {
+    const w = mode === 'local' ? game.world : online?.world;
+    const myTeam: Team = mode === 'local' ? game.humanTeam : (online?.team ?? 0);
+    if (w) touch.setMode(touchModeFor(w, myTeam, touch.mode));
+  }
+}
+
+/** Attack buttons while your team has the ball, defence buttons while the other team does. */
+function touchModeFor(w: World, myTeam: Team, current: TouchMode): TouchMode {
+  const owner = w.ball.owner >= 0 ? w.players[w.ball.owner] : undefined;
+  if (!owner) return current === 'idle' ? 'attack' : current; // loose ball: keep what you had
+  return owner.team === myTeam ? 'attack' : 'defend';
 }
 
 /** On phones, use the whole screen and prefer landscape where the browser allows it. */

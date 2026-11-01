@@ -42,11 +42,11 @@
         <span class="stick-hint">Drag anywhere here to move<br />Push to the edge to sprint</span>
       </div>
       <div class="buttons">
-        <button class="tbtn shoot" data-button="shoot">SHOOT<small>hold</small></button>
-        <button class="tbtn pass" data-button="pass">PASS</button>
-        <button class="tbtn tackle" data-button="tackle">TACKLE</button>
-        <button class="tbtn sprint" data-button="sprint">SPRINT</button>
-        <button class="tbtn switch" data-button="switch">Q</button>
+        <span class="mode-chip"></span>
+        <button class="tbtn slot-main" data-slot="main"></button>
+        <button class="tbtn slot-second" data-slot="second"></button>
+        <button class="tbtn slot-third" data-slot="third"></button>
+        <button class="tbtn slot-fourth" data-slot="fourth"></button>
       </div>
     </div>
 
@@ -77,17 +77,18 @@
         <div class="touch-help">
           <div><b>Left thumb:</b> drag anywhere on the left to move, push to the edge to sprint</div>
           <div><b>SHOOT:</b> hold to charge, let go to shoot — steer while charging to curl</div>
-          <div><b>PASS</b> · <b>TACKLE</b> · <b>Q</b> switch to the teammate with the Q badge</div>
+          <div><b>With the ball:</b> SHOOT · PASS · THROUGH (into space) · SPRINT</div>
+          <div><b>Defending:</b> TACKLE · SWITCH (to the Q badge) · PRESS (hold to chase) · SPRINT</div>
         </div>
         <div class="controls">
           <div><kbd>WASD</kbd> / <kbd>Arrows</kbd> move</div>
           <div><kbd>Shift</kbd> sprint</div>
           <div><kbd>J</kbd> / <kbd>Space</kbd> hold to shoot — steer sideways to curl</div>
-          <div><kbd>K</kbd> pass</div>
-          <div><kbd>L</kbd> tackle</div>
+          <div><kbd>K</kbd> pass · <kbd>I</kbd> through ball (into space)</div>
+          <div><kbd>L</kbd> tackle · hold <kbd>E</kbd> to press (chase the ball)</div>
           <div><kbd>Q</kbd> switch to the teammate with the <b>Q</b> badge (also automatic when defending)</div>
           <div><kbd>Esc</kbd> pause · <kbd>M</kbd> sound</div>
-          <div class="pad">Gamepad: stick move · A pass · X shoot · B tackle · RT sprint · LB switch</div>
+          <div class="pad">Gamepad: stick move · A pass · Y through · X shoot · B tackle · LT press · RT sprint · LB switch</div>
         </div>
         <button id="music-toggle" class="toggle">Music: on</button>
         <p class="hint">Passes and tackles fill your <b>Rush</b> meter. When it's full, your next shot is a power shot.</p>

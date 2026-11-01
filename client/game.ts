@@ -5,6 +5,7 @@ import { DT } from '../shared/constants';
 import {
   autoSwitch,
   autoSwitchDefending,
+  pressToward,
   switchTarget,
   switchToNearest,
   SwitchTimer,
@@ -85,6 +86,11 @@ export class Game {
   private tick(w: World): void {
     const human = this.input.read();
     if (human.switchPlayer) this.handOver(switchToNearest(w, this.controlled, this.humanTeam, this.switchTimer));
+
+    const me = w.players[this.controlledId];
+    if (human.press && me && Math.hypot(human.game.moveX, human.game.moveZ) < 0.2) {
+      Object.assign(human.game, pressToward(me, w.ball)); // hold press: chase the ball
+    }
 
     const humans = new Set([this.controlledId]);
     const inputs: Input[] = w.players.map((p) =>

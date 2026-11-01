@@ -75,6 +75,9 @@ export const PASS = {
   loftDistance: 15, // passes longer than this are chipped
   loftLift: 6,
   lead: 0.35, // seconds of the receiver's run to aim ahead
+  throughLead: 0.9, // through balls aim much further ahead…
+  throughSpace: 3.5, // …and this many metres further toward goal
+  throughSpeedFactor: 1.12,
   minDistance: 2,
 } as const;
 

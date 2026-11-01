@@ -586,44 +586,95 @@ html.touch,
   border-color: var(--accent);
 }
 
-.tbtn.shoot {
+.tbtn.gone {
+  display: none;
+}
+
+/* Slots: the same four positions, relabelled by situation (see client/touch.ts). */
+.tbtn.slot-main {
   right: 0;
   bottom: 0;
   width: 96px;
   height: 96px;
   font-size: 15px;
-  border-color: rgba(250, 204, 21, 0.7);
 }
 
-.tbtn.pass {
+.tbtn.slot-second {
   right: 108px;
-  bottom: 6px;
-  width: 72px;
-  height: 72px;
+  bottom: 4px;
+  width: 74px;
+  height: 74px;
 }
 
-.tbtn.tackle {
-  right: 20px;
+.tbtn.slot-third {
+  right: 14px;
   bottom: 108px;
   width: 72px;
   height: 72px;
 }
 
-.tbtn.sprint {
-  right: 112px;
-  bottom: 96px;
+.tbtn.slot-fourth {
+  right: 110px;
+  bottom: 94px;
   width: 58px;
   height: 58px;
   font-size: 10px;
 }
 
-.tbtn.switch {
-  right: 176px;
-  bottom: 150px;
-  width: 46px;
-  height: 46px;
-  font-size: 16px;
+/* Attacking: yellow shoot button. Defending: red tackle button. */
+#touch[data-mode='attack'] .slot-main,
+#touch[data-mode='penaltyTaker'] .slot-main {
+  border-color: rgba(250, 204, 21, 0.8);
+}
+
+#touch[data-mode='defend'] .slot-main,
+#touch[data-mode='penaltyKeeper'] .slot-main {
+  border-color: rgba(248, 113, 113, 0.85);
+}
+
+#touch[data-mode='defend'] .tbtn[data-action='switch'] {
   color: var(--accent);
+}
+
+.mode-chip {
+  position: absolute;
+  right: 4px;
+  bottom: 186px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font: 800 10px/1.2 system-ui, sans-serif;
+  letter-spacing: 0.1em;
+  color: #1a1400;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+#touch[data-mode='attack'] .mode-chip::after {
+  content: 'ATTACK';
+}
+
+#touch[data-mode='defend'] .mode-chip {
+  background: #f87171;
+}
+
+#touch[data-mode='defend'] .mode-chip::after {
+  content: 'DEFEND';
+}
+
+#touch[data-mode='penaltyTaker'] .mode-chip::after {
+  content: 'PENALTY';
+}
+
+#touch[data-mode='penaltyKeeper'] .mode-chip {
+  background: #f87171;
+}
+
+#touch[data-mode='penaltyKeeper'] .mode-chip::after {
+  content: 'KEEPER';
+}
+
+#touch[data-mode='idle'] .mode-chip {
+  display: none;
 }
 
 /* The power and stamina bars sit above the thumbs on phones. */
