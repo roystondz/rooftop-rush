@@ -31,12 +31,18 @@ export class SwitchTimer {
  * Follows the ball automatically: when you pass, you take over the receiver; when a teammate
  * wins the ball, you take over them; at each kickoff you take your attacker again.
  */
-export function autoSwitch(w: World, controlled: Controlled, events: readonly MatchEvent[]): Handover[] {
+export function autoSwitch(
+  w: World,
+  controlled: Controlled,
+  events: readonly MatchEvent[],
+  timer?: SwitchTimer,
+): Handover[] {
   const changes: Handover[] = [];
   const set = (team: Team, next: number) => {
     const current = controlled[team];
     if (current === undefined || current < 0 || next === current) return;
     controlled[team] = next;
+    timer?.mark(w, team); // so the defending switch can't immediately undo this one
     changes.push({ from: current, to: next });
   };
   for (const e of events) {
@@ -92,6 +98,8 @@ export function autoSwitchDefending(w: World, controlled: Controlled, team: Team
   if (current === undefined || current < 0 || w.phase !== 'playing' || w.kickoffPending) return null;
   const b = w.ball;
   if (b.owner >= 0 && w.players[b.owner].team === team) return null; // we have it
+  // Our own pass or shot is still travelling: that's not defending.
+  if (b.owner < 0 && b.lastTouch >= 0 && w.players[b.lastTouch].team === team) return null;
   if (!timer.ready(w, team)) return null;
 
   const me = w.players[current];

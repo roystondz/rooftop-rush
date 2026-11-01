@@ -65,9 +65,13 @@ export class Renderer {
   private tmp = new THREE.Vector3();
   private dummy = new THREE.Object3D();
 
-  constructor(canvas: HTMLCanvasElement) {
+  /** `lowPower`: phones and tablets get a lower resolution and smaller shadows, to stay smooth. */
+  constructor(
+    canvas: HTMLCanvasElement,
+    private lowPower = false,
+  ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowPower ? 1.5 : 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -222,7 +226,8 @@ export class Renderer {
     const moon = new THREE.DirectionalLight(0xdfe6ff, 2.2);
     moon.position.set(-12, 30, 18);
     moon.castShadow = true;
-    moon.shadow.mapSize.set(2048, 2048);
+    const shadowSize = this.lowPower ? 1024 : 2048;
+    moon.shadow.mapSize.set(shadowSize, shadowSize);
     const sc = moon.shadow.camera;
     sc.left = -26;
     sc.right = 26;

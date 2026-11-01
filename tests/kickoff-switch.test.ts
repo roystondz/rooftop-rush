@@ -125,6 +125,23 @@ describe('switching while defending', () => {
     expect(autoSwitchDefending(w, controlled, 0, timer)).toBeNull();
   });
 
+  it('keeps you on the receiver while your pass is travelling', () => {
+    const w = afterWhistle();
+    const controlled = [KICKER, -1];
+    const timer = new SwitchTimer();
+    step(w, only(KICKER, { ...idle, pass: true }));
+    autoSwitch(w, controlled, w.events, timer);
+    const receiver = controlled[0];
+    expect(receiver).not.toBe(KICKER);
+    // Same tick and the following ones: the loose ball is ours, so no snapping back to the passer.
+    for (let i = 0; i < 20; i++) {
+      expect(autoSwitchDefending(w, controlled, 0, timer)).toBeNull();
+      step(w, []);
+      autoSwitch(w, controlled, w.events, timer);
+    }
+    expect(controlled[0]).toBe(receiver);
+  });
+
   it("waits a moment after a manual switch, so it doesn't fight you", () => {
     const { w, controlled, timer } = defending();
     controlled[0] = 1;

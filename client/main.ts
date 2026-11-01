@@ -6,17 +6,24 @@ import { Effects } from './effects';
 import { Game } from './game';
 import { Hud, TEAM_NAMES } from './hud';
 import { InputManager } from './input';
+import { isTouchDevice } from './joystick';
 import { Connection, lagFromUrl, serverUrl } from './net';
 import { OnlineGame } from './online';
 import { Renderer } from './renderer';
+import { TouchControls } from './touch';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const sfx = new Sfx();
-const renderer = new Renderer($<HTMLCanvasElement>('game'));
+const touchDevice = isTouchDevice();
+document.documentElement.classList.toggle('touch', touchDevice);
+const renderer = new Renderer($<HTMLCanvasElement>('game'), touchDevice);
 const hud = new Hud();
 const input = new InputManager();
 const effects = new Effects(sfx, renderer, hud);
+const touch = touchDevice ? new TouchControls() : null;
+input.touch = touch;
+if (touch) effects.passHint = 'tap PASS';
 const game = new Game(renderer, hud, input, effects);
 let online: OnlineGame | null = null;
 let mode: 'menu' | 'local' | 'online' = 'menu';
@@ -45,14 +52,36 @@ function loop(now: number): void {
   lastFrame = now;
   if (mode === 'local') game.frame(dt);
   else if (online) online.frame(dt);
+  syncTouchControls();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
 // --- local play -------------------------------------------------------------------
 
+/** On-screen controls appear only while a match is being played, not over menus. */
+function syncTouchControls(): void {
+  const inMatch =
+    (mode === 'local' && game.world !== null) || (mode === 'online' && online?.started === true);
+  const menuOpen = ['pause', 'fulltime', 'waiting', 'online', 'menu'].some((id) => !$(id).classList.contains('hidden'));
+  document.documentElement.classList.toggle('in-match', inMatch && !menuOpen);
+  touch?.show(inMatch && !menuOpen);
+}
+
+/** On phones, use the whole screen and prefer landscape where the browser allows it. */
+function enterFullscreen(): void {
+  if (!touchDevice || document.fullscreenElement) return;
+  const el = document.documentElement;
+  el.requestFullscreen?.()
+    .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape'))
+    .catch(() => {
+      // Not allowed here (e.g. iPhone Safari): play in the normal window instead.
+    });
+}
+
 function playLocal(): void {
   sfx.unlock();
+  enterFullscreen();
   leaveOnline();
   mode = 'local';
   show(null);
@@ -102,6 +131,7 @@ function leaveOnline(): void {
 
 async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<void> {
   sfx.unlock();
+  enterFullscreen();
   leaveOnline();
   setStatus('Connecting…');
   let conn: Connection;
@@ -165,6 +195,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach((btn) 
 });
 
 $('play').addEventListener('click', playLocal);
+$('rotate-ok').addEventListener('click', () => document.documentElement.classList.add('rotate-ok'));
 $('online-btn').addEventListener('click', () => {
   setStatus('');
   show('online');

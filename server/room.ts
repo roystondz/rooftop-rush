@@ -170,7 +170,7 @@ export class Room {
     );
     step(w, inputs);
     this.events.push(...w.events);
-    this.handOver(autoSwitch(w, this.controlled, w.events));
+    this.handOver(autoSwitch(w, this.controlled, w.events, this.switchTimer));
     for (const seat of this.seats) {
       if (seat) this.handOver(nonNull(autoSwitchDefending(w, this.controlled, seat.team, this.switchTimer)));
     }

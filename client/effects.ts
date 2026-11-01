@@ -6,6 +6,8 @@ import type { Renderer } from './renderer';
 
 export class Effects {
   myTeam: Team = 0;
+  /** How to tell the player to pass: "press K" on a keyboard, "tap PASS" on a phone. */
+  passHint = 'press K';
   onFullTime: (w: World) => void = () => {};
   private lastPhase: Phase | null = null;
 
@@ -25,7 +27,7 @@ export class Effects {
     if (w.phase === this.lastPhase) return;
     if (w.phase === 'kickoff') this.hud.message('KICK OFF', '', 1.2);
     if (w.phase === 'playing' && this.lastPhase === 'kickoff' && w.kickoffPending && w.kickoffTeam === this.myTeam) {
-      this.hud.message('PASS TO START', 'Turn to aim, then press K', 1.8);
+      this.hud.message('PASS TO START', `Turn to aim, then ${this.passHint}`, 1.8);
     }
     this.lastPhase = w.phase;
   }

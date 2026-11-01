@@ -31,6 +31,9 @@ npm run dev
 
 ## Controls
 
+**On a phone or tablet** the game shows on-screen controls automatically: drag anywhere on the left half to move (push to the edge to sprint), and use the SHOOT (hold), PASS, TACKLE, SPRINT and Q buttons on the right. Several fingers work at once. Landscape is recommended; the game suggests turning the phone and, where the browser allows, goes fullscreen.
+
+
 | Action | Keyboard | Gamepad |
 |---|---|---|
 | Move | WASD / arrows | Left stick |
@@ -71,7 +74,9 @@ client/            Browser only.
   net.ts           WebSocket connection, server address, and the ?lag= simulator.
   effects.ts       Match events → sounds, screen shake, messages.
   renderer.ts      Three.js drawing: arena, city, players, ball, camera, effects.
-  input.ts         Keyboard and gamepad → Input.
+  input.ts         Keyboard, gamepad and touch → Input.
+  touch.ts         On-screen joystick and buttons for phones (multi-touch).
+  joystick.ts      Joystick maths (dead zone, push-to-sprint), kept DOM-free for testing.
   audio.ts         Sounds, generated in code (no audio files).
   hud.ts           Score, clock, Rush and power meters.
 tests/             Automated tests: rules, protocol, and the real server with test clients.
@@ -133,6 +138,6 @@ Then open http://localhost:3000.
 2. ~~Online 1v1: server runs the match, quick match, room codes, rematch~~ ✅
 3. ~~Responsive online play: client prediction and reconciliation~~ ✅
 4. 3v3 online, bots filling empty spots, quick match.
-5. Touch controls, more polish.
+5. ~~Touch controls for phones and tablets~~ ✅
 6. ~~Deploy setup: one Render service for page and server~~ ✅
 7. Accounts and leaderboard with Supabase.

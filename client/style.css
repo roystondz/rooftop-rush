@@ -453,3 +453,226 @@ kbd {
   letter-spacing: 0.25em;
   color: var(--accent);
 }
+
+/* --- Touch controls (phones and tablets) ----------------------------------- */
+
+.touch-help {
+  display: none;
+  margin-top: 20px;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--muted);
+  text-align: left;
+}
+
+.touch .touch-help {
+  display: grid;
+}
+
+.touch .controls {
+  display: none;
+}
+
+html.touch,
+.touch body,
+.touch #game {
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-touch-callout: none;
+}
+
+#touch {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.stick-zone {
+  position: absolute;
+  left: 0;
+  top: 90px; /* leave the scoreboard and buttons above free to tap */
+  bottom: 0;
+  width: 50%;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.stick-hint {
+  position: absolute;
+  left: 24px;
+  bottom: 28px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(232, 236, 255, 0.45);
+  pointer-events: none;
+}
+
+.stick-base {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(7, 11, 28, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+
+.stick-base.active {
+  opacity: 1;
+}
+
+.stick-base.active ~ .stick-hint,
+.stick-zone:has(.stick-base.active) .stick-hint {
+  display: none;
+}
+
+.stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+}
+
+.buttons {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: 230px;
+  height: 210px;
+  pointer-events: none;
+}
+
+.tbtn {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(7, 11, 28, 0.32);
+  color: var(--text);
+  font: 800 12px/1 system-ui, sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  letter-spacing: 0.04em;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tbtn small {
+  display: block;
+  margin-top: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.tbtn.down {
+  transform: scale(0.92);
+  background: rgba(250, 204, 21, 0.35);
+  border-color: var(--accent);
+}
+
+.tbtn.shoot {
+  right: 0;
+  bottom: 0;
+  width: 96px;
+  height: 96px;
+  font-size: 15px;
+  border-color: rgba(250, 204, 21, 0.7);
+}
+
+.tbtn.pass {
+  right: 108px;
+  bottom: 6px;
+  width: 72px;
+  height: 72px;
+}
+
+.tbtn.tackle {
+  right: 20px;
+  bottom: 108px;
+  width: 72px;
+  height: 72px;
+}
+
+.tbtn.sprint {
+  right: 112px;
+  bottom: 96px;
+  width: 58px;
+  height: 58px;
+  font-size: 10px;
+}
+
+.tbtn.switch {
+  right: 176px;
+  bottom: 150px;
+  width: 46px;
+  height: 46px;
+  font-size: 16px;
+  color: var(--accent);
+}
+
+/* The power and stamina bars sit above the thumbs on phones. */
+.touch .meters {
+  bottom: auto;
+  top: 96px;
+  transform: translateX(-50%) scale(0.85);
+}
+
+/* Rotate hint: only on touch screens, in portrait, during a match. */
+#rotate {
+  display: none;
+  z-index: 20;
+}
+
+.rotate-icon {
+  font-size: 44px;
+  margin-bottom: 8px;
+}
+
+@media (orientation: portrait) {
+  .touch.in-match:not(.rotate-ok) #rotate {
+    display: grid;
+  }
+}
+
+@media (max-height: 420px) {
+  .buttons {
+    transform: scale(0.85);
+    transform-origin: bottom right;
+  }
+  .panel {
+    padding: 18px;
+  }
+  h1 {
+    font-size: 32px;
+  }
+}
+
+
+/* Narrow screens (phones in portrait): move the round buttons below the scoreboard. */
+@media (max-width: 560px) {
+  .icon-btn {
+    top: 74px;
+  }
+  .ping {
+    top: 120px;
+  }
+  .touch .meters {
+    top: 122px;
+  }
+}

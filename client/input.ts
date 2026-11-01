@@ -1,4 +1,5 @@
 import type { Input } from '../shared/types';
+import type { TouchControls } from './touch';
 
 export interface FrameInput {
   game: Input;
@@ -22,12 +23,14 @@ type Action = keyof typeof KEYS;
 const GAME_KEYS = new Set<string>(Object.values(KEYS).flat());
 
 /**
- * Turns keyboard and gamepad state into one Input per game tick.
+ * Turns keyboard, gamepad and on-screen touch controls into one Input per game tick.
  * Key presses are latched, so a tap shorter than one tick is never lost.
  */
 export class InputManager {
   private down = new Set<string>();
   private pressed = new Set<string>(); // pressed since the last read
+  /** Set on phones and tablets. */
+  touch: TouchControls | null = null;
 
   constructor(target: Window = window) {
     target.addEventListener('keydown', (e) => {
@@ -68,6 +71,19 @@ export class InputManager {
       pass ||= this.padEdge(0, btn(0));
       tackle ||= this.padEdge(1, btn(1));
       switchPlayer ||= this.padEdge(4, btn(4));
+    }
+
+    if (this.touch) {
+      const t = this.touch.read();
+      if (t.moveX !== 0 || t.moveZ !== 0) {
+        moveX = t.moveX;
+        moveZ = t.moveZ;
+      }
+      sprint ||= t.sprint;
+      shoot ||= t.shoot;
+      pass ||= t.pass;
+      tackle ||= t.tackle;
+      switchPlayer ||= t.switchPlayer;
     }
 
     this.pressed.clear();

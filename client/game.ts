@@ -93,7 +93,7 @@ export class Game {
     this.prev = takeSnapshot(w, this.prev ?? undefined);
     step(w, inputs);
 
-    for (const c of autoSwitch(w, this.controlled, w.events)) this.handOver(c);
+    for (const c of autoSwitch(w, this.controlled, w.events, this.switchTimer)) this.handOver(c);
     this.handOver(autoSwitchDefending(w, this.controlled, this.humanTeam, this.switchTimer));
     this.effects.watchPhase(w);
     for (const e of w.events) this.effects.handle(w, e);

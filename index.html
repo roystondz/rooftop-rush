@@ -35,6 +35,29 @@
       <button id="mute-btn" class="icon-btn" title="Sound on/off (M)">♪</button>
     </div>
 
+    <div id="touch" class="hidden">
+      <div class="stick-zone">
+        <div class="stick-base"><div class="stick-knob"></div></div>
+        <span class="stick-hint">Drag anywhere here to move<br />Push to the edge to sprint</span>
+      </div>
+      <div class="buttons">
+        <button class="tbtn shoot" data-button="shoot">SHOOT<small>hold</small></button>
+        <button class="tbtn pass" data-button="pass">PASS</button>
+        <button class="tbtn tackle" data-button="tackle">TACKLE</button>
+        <button class="tbtn sprint" data-button="sprint">SPRINT</button>
+        <button class="tbtn switch" data-button="switch">Q</button>
+      </div>
+    </div>
+
+    <div id="rotate" class="overlay">
+      <div class="panel">
+        <div class="rotate-icon">📱↻</div>
+        <h2>Turn your phone sideways</h2>
+        <p class="tag">The pitch is much easier to see in landscape.</p>
+        <button id="rotate-ok">Play in portrait anyway</button>
+      </div>
+    </div>
+
     <div id="menu" class="overlay">
       <div class="panel">
         <h1>ROOFTOP <em>RUSH</em></h1>
@@ -46,6 +69,11 @@
         </div>
         <button id="play" class="primary">Play vs bots</button>
         <button id="online-btn">Play online</button>
+        <div class="touch-help">
+          <div><b>Left thumb:</b> drag anywhere on the left to move, push to the edge to sprint</div>
+          <div><b>SHOOT:</b> hold to charge, let go to shoot — steer while charging to curl</div>
+          <div><b>PASS</b> · <b>TACKLE</b> · <b>Q</b> switch to the teammate with the Q badge</div>
+        </div>
         <div class="controls">
           <div><kbd>WASD</kbd> / <kbd>Arrows</kbd> move</div>
           <div><kbd>Shift</kbd> sprint</div>
