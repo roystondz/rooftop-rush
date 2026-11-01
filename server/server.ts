@@ -2,6 +2,7 @@
 import http from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { parseClientMessage, type ServerMessage } from '../shared/protocol';
+import type { GameMode } from '../shared/types';
 import { Room, type Seat } from './room';
 import { staticFiles } from './static';
 
@@ -41,8 +42,8 @@ export function startServer(port: number, staticDir?: string): Promise<RunningSe
     }
   };
 
-  const createRoom = (isPublic: boolean): Room => {
-    const room = new Room(newCode(), isPublic, (r) => rooms.delete(r.code));
+  const createRoom = (isPublic: boolean, mode: GameMode = 'match'): Room => {
+    const room = new Room(newCode(), isPublic, (r) => rooms.delete(r.code), mode);
     rooms.set(room.code, room);
     return room;
   };
@@ -84,12 +85,14 @@ export function startServer(port: number, staticDir?: string): Promise<RunningSe
           return;
         case 'quick': {
           if (room) return;
-          const waiting = [...rooms.values()].find((r) => r.isPublic && !r.started && r.playerCount === 1);
-          enter(waiting ?? createRoom(true), msg.name);
+          // Quick match pairs you with someone waiting for the same kind of game.
+          const mode = msg.mode ?? 'match';
+          const waiting = [...rooms.values()].find((r) => r.isPublic && !r.started && r.playerCount === 1 && r.mode === mode);
+          enter(waiting ?? createRoom(true, mode), msg.name);
           return;
         }
         case 'create':
-          if (!room) enter(createRoom(false), msg.name);
+          if (!room) enter(createRoom(false, msg.mode), msg.name);
           return;
         case 'join': {
           if (room) return;

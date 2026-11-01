@@ -50,6 +50,7 @@ export class Renderer {
   private ballShadow!: THREE.Mesh;
   private marker!: THREE.Group;
   private ghost!: THREE.Mesh;
+  private aimLine!: THREE.Mesh;
   private switchHint!: THREE.Sprite;
   private switchHintId = -1;
   private trail!: THREE.InstancedMesh;
@@ -161,6 +162,13 @@ export class Renderer {
       v.armR.rotation.z = swing * 0.8;
       v.body.position.y = 1.08 + Math.abs(Math.sin(v.stride)) * 0.06 * run;
       v.root.rotation.z = p.stun > 0 ? -0.5 : -0.12 * run; // lean into the run, wobble when stunned
+      if (p.dive > 0 || (w.mode === 'penalties' && p.role === 'keeper' && p.stun > 0)) {
+        // Keeper diving (or lying after a dive): lay the body over sideways.
+        v.root.rotation.x = Math.sign(p.vz || 1) * -1.2;
+        v.root.position.y = 0.35;
+      } else {
+        v.root.rotation.x = 0;
+      }
 
       // The scoring team jumps. During the goal phase the ball sits in the net it went into.
       const celebrating = w.phase === 'goal' && p.team === (w.ball.x > 0 ? 0 : 1);
@@ -206,7 +214,8 @@ export class Renderer {
     this.updateTrail(w, frameDt);
     this.updateConfetti(frameDt);
     this.updateNets(frameDt);
-    this.updateCamera(bx, bz, frameDt);
+    this.updateAimLine(w, controlledId);
+    this.updateCamera(bx, bz, frameDt, w.mode === 'penalties');
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -484,6 +493,13 @@ export class Renderer {
     this.ghost.visible = false;
     this.scene.add(this.ghost);
 
+    this.aimLine = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.2, 0.14),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.8, depthWrite: false }),
+    );
+    this.aimLine.visible = false;
+    this.scene.add(this.aimLine);
+
     // A "Q" badge over the teammate the switch button would give you.
     this.switchHint = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: switchBadgeTexture(), depthTest: false, transparent: true }),
@@ -598,14 +614,28 @@ export class Renderer {
     });
   }
 
-  private updateCamera(bx: number, bz: number, dt: number): void {
+  /** Penalties: a line from the ball showing where you're aiming. */
+  private updateAimLine(w: World, controlledId: number): void {
+    const so = w.shootout;
+    const me = w.players[controlledId];
+    const show = !!so && !so.kicked && w.phase === 'playing' && w.ball.owner === controlledId && !!me;
+    this.aimLine.visible = show;
+    if (!show || !me) return;
+    const len = 3.2;
+    this.aimLine.position.set(w.ball.x + Math.cos(me.facing) * len * 0.5, 0.04, w.ball.z + Math.sin(me.facing) * len * 0.5);
+    this.aimLine.rotation.set(-Math.PI / 2, 0, me.facing);
+  }
+
+  private updateCamera(bx: number, bz: number, dt: number, penalties = false): void {
     const portrait = this.camera.aspect < 1;
-    this.camX = lerp(this.camX, clamp(bx * 0.85, -11, 11), 1 - Math.exp(-3 * dt));
+    // Penalties: closer, looking at the goal being shot at.
+    const range = penalties ? 13.5 : 11;
+    this.camX = lerp(this.camX, clamp(bx * (penalties ? 1 : 0.85), -range, range), 1 - Math.exp(-3 * dt));
     this.shake = Math.max(0, this.shake - dt * 2.5);
     const sx = (Math.sin(this.time * 61) * 0.3 + Math.sin(this.time * 37) * 0.2) * this.shake;
     const sy = Math.sin(this.time * 53) * 0.3 * this.shake;
-    const height = portrait ? 36 : 21;
-    const back = portrait ? 28 : 25;
+    const height = portrait ? 36 : penalties ? 15 : 21;
+    const back = portrait ? 28 : penalties ? 18 : 25;
     this.camera.position.set(this.camX + sx, height + sy, back + bz * 0.15);
     this.camera.lookAt(this.camX, 0, bz * 0.3 + 0.5);
   }

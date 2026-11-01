@@ -2,12 +2,19 @@
 // and everyone receives the same snapshots. That's what stops cheating.
 import { Bot, BOT_SKILLS } from '../shared/bot';
 import { DT } from '../shared/constants';
-import { autoSwitch, autoSwitchDefending, switchToNearest, SwitchTimer, type Controlled } from '../shared/control';
+import {
+  autoSwitch,
+  autoSwitchDefending,
+  startingPlayer,
+  switchToNearest,
+  SwitchTimer,
+  type Controlled,
+} from '../shared/control';
 import { makeSnapshot, SNAPSHOT_EVERY, unpackInput, type ClientMessage, type ServerMessage } from '../shared/protocol';
 import { teamNames } from '../shared/names';
 import { createWorld, step } from '../shared/sim';
 import { NO_INPUT } from '../shared/types';
-import type { Input, MatchEvent, Team, World } from '../shared/types';
+import type { GameMode, Input, MatchEvent, Team, World } from '../shared/types';
 
 /** Inputs waiting to be used. A few are kept so short network hiccups don't drop button presses. */
 const MAX_QUEUED_INPUTS = 8;
@@ -44,6 +51,7 @@ export class Room {
     readonly code: string,
     readonly isPublic: boolean,
     private readonly onEmpty: (room: Room) => void,
+    readonly mode: GameMode = 'match',
   ) {}
 
   get playerCount(): number {
@@ -60,7 +68,7 @@ export class Room {
     if (team === -1) return null;
     const seat: Seat = { team, send, queue: [], last: { ...NO_INPUT }, lastSeq: -1, ack: -1, wantsRematch: false, name };
     this.seats[team] = seat;
-    send({ t: 'room', code: this.code, team, isPublic: this.isPublic });
+    send({ t: 'room', code: this.code, team, isPublic: this.isPublic, mode: this.mode });
     if (this.playerCount === 2) this.start();
     return seat;
   }
@@ -103,17 +111,17 @@ export class Room {
   }
 
   private start(): void {
-    const w = createWorld();
+    const w = createWorld({ mode: this.mode });
     this.world = w;
     this.bots = w.players.map((p) => new Bot(p.id, BOT_SKILLS.normal, Date.now() % 100000));
-    this.controlled = [0, 1].map((team) => w.players.find((p) => p.team === team && p.role === 'attacker')!.id);
+    this.controlled = ([0, 1] as const).map((team) => startingPlayer(w, team));
     this.events = [];
     this.switchTimer = new SwitchTimer();
     const names = teamNames(this.seats[0]?.name, this.seats[1]?.name);
     for (const s of this.seats) {
       if (!s) continue;
       Object.assign(s, { queue: [], last: { ...NO_INPUT }, wantsRematch: false });
-      s.send({ t: 'start', team: s.team, names });
+      s.send({ t: 'start', team: s.team, names, mode: this.mode });
     }
     this.startLoop();
   }

@@ -13,7 +13,8 @@ import { OnlineGame } from './online';
 import { Renderer } from './renderer';
 import { loadSettings, saveSettings } from './settings';
 import { TouchControls, type TouchMode } from './touch';
-import type { Team } from '../shared/types';
+import type { GameMode, Team } from '../shared/types';
+import { penaltyDuel } from '../shared/sim';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -26,11 +27,15 @@ const input = new InputManager();
 const effects = new Effects(sfx, renderer, hud);
 const touch = touchDevice ? new TouchControls() : null;
 input.touch = touch;
-if (touch) effects.passHint = 'tap PASS';
+if (touch) {
+  effects.passHint = 'tap PASS';
+  effects.penaltyHints = { take: 'aim with the stick, hold SHOOT', save: 'stick to move, DIVE' };
+}
 const game = new Game(renderer, hud, input, effects);
 let online: OnlineGame | null = null;
 let mode: 'menu' | 'local' | 'online' = 'menu';
 let difficulty: Difficulty = 'normal';
+let gameMode: GameMode = 'match';
 const settings = loadSettings();
 /** Names shown for the current match: [left team, right team]. */
 let names: [string, string] = [...DEFAULT_TEAM_NAMES];
@@ -81,6 +86,8 @@ function syncTouchControls(): void {
 
 /** Attack buttons while your team has the ball, defence buttons while the other team does. */
 function touchModeFor(w: World, myTeam: Team, current: TouchMode): TouchMode {
+  const duel = penaltyDuel(w);
+  if (duel) return duel.taker.team === myTeam ? 'penaltyTaker' : 'penaltyKeeper';
   const owner = w.ball.owner >= 0 ? w.players[w.ball.owner] : undefined;
   if (!owner) return current === 'idle' ? 'attack' : current; // loose ball: keep what you had
   return owner.team === myTeam ? 'attack' : 'defend';
@@ -110,7 +117,7 @@ function playLocal(): void {
   mode = 'local';
   show(null);
   useNames(teamNames(settings.teamName, undefined));
-  game.start(difficulty);
+  game.start(difficulty, gameMode);
 }
 
 function toMenu(): void {
@@ -136,7 +143,9 @@ function setPaused(paused: boolean): void {
 function showResult(w: World, myTeam: 0 | 1): void {
   const [a, b] = w.score;
   $('result-title').textContent = w.winner === myTeam ? 'You win!' : w.winner === -1 ? 'Draw' : 'You lose';
+  const onPens = w.mode === 'penalties' ? ' on penalties' : '';
   $('result-score').textContent = `${names[0]} ${a} – ${b} ${names[1]}`;
+  if (onPens && w.winner !== -1) $('result-title').textContent += onPens;
   $('again').textContent = mode === 'online' ? 'Rematch' : 'Play again';
   $('rematch-status').textContent = '';
   show('fulltime');
@@ -168,10 +177,11 @@ async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<v
   }
   mode = 'online';
   online = new OnlineGame(conn, renderer, hud, input, effects, debugNet, {
-    room(code, isPublic) {
+    room(code, isPublic, roomMode) {
       $('room-code').textContent = code;
       $('code-box').classList.toggle('hidden', isPublic);
-      $('waiting-title').textContent = isPublic ? 'Finding an opponent…' : 'Waiting for your friend…';
+      const what = roomMode === 'penalties' ? ' (penalties)' : '';
+      $('waiting-title').textContent = (isPublic ? 'Finding an opponent' : 'Waiting for your friend') + `${what}…`;
       show('waiting');
     },
     start(team, matchNames) {
@@ -207,13 +217,21 @@ async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<v
   });
   // Send your chosen name; the server cleans it and tells both players the final names.
   const name = settings.teamName || undefined;
-  if (first === 'quick') conn.send({ t: 'quick', name });
-  else if (first === 'create') conn.send({ t: 'create', name });
+  // Joining with a code plays whatever the room was created for.
+  if (first === 'quick') conn.send({ t: 'quick', name, mode: gameMode });
+  else if (first === 'create') conn.send({ t: 'create', name, mode: gameMode });
   else conn.send({ t: 'join', code: first.join, name });
   setStatus('');
 }
 
 // --- buttons and keys -------------------------------------------------------------
+
+document.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    gameMode = btn.dataset.gameMode as GameMode;
+    document.querySelectorAll('[data-game-mode]').forEach((b) => b.classList.toggle('selected', b === btn));
+  });
+});
 
 document.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach((btn) => {
   btn.addEventListener('click', () => {

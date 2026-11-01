@@ -1,9 +1,9 @@
 // The whole match simulation. It never reads the clock, the keyboard or Math.random,
 // so the same inputs always give the same result. That is what lets a server run it later.
-import { BALL, DT, MATCH, PASS, PITCH, PLAYER, RUSH, SHOT } from './constants';
+import { BALL, DT, MATCH, PASS, PITCH, PLAYER, RUSH, SHOOTOUT, SHOT } from './constants';
 import { clamp, distToSegment, lerp, turnTowards } from './math';
 import { NO_INPUT } from './types';
-import type { Ball, Input, KickKind, MatchEvent, Player, Role, Team, World } from './types';
+import type { Ball, GameMode, Input, KickKind, MatchEvent, Player, Role, Team, World } from './types';
 
 const HALF_L = PITCH.length / 2;
 const HALF_W = PITCH.width / 2;
@@ -17,13 +17,16 @@ export function inOwnBox(p: Player): boolean {
   return Math.abs(p.x - ownGoalX(p.team)) < PITCH.boxDepth && Math.abs(p.z) < PITCH.boxHalfWidth;
 }
 
-export function createWorld(options: { duration?: number } = {}): World {
+export function createWorld(options: { duration?: number; mode?: GameMode } = {}): World {
   const players: Player[] = [];
   for (const team of [0, 1] as const) {
     for (const role of ROLES) players.push(makePlayer(players.length, team, role));
   }
+  const mode = options.mode ?? 'match';
   const w: World = {
     tick: 0,
+    mode,
+    shootout: mode === 'penalties' ? { taker: 0, kicks: [[], []], kicked: false, kickTimer: 0 } : null,
     time: options.duration ?? MATCH.duration,
     phase: 'kickoff',
     phaseTimer: MATCH.kickoffDelay,
@@ -38,7 +41,8 @@ export function createWorld(options: { duration?: number } = {}): World {
     lastScorer: -1,
     winner: -1,
   };
-  resetForKickoff(w, 0);
+  if (mode === 'penalties') setupPenalty(w);
+  else resetForKickoff(w, 0);
   return w;
 }
 
@@ -46,6 +50,10 @@ export function createWorld(options: { duration?: number } = {}): World {
 export function step(w: World, inputs: ReadonlyArray<Input | undefined>): void {
   w.events.length = 0;
   w.tick++;
+  if (w.mode === 'penalties') {
+    stepShootout(w, inputs);
+    return;
+  }
 
   switch (w.phase) {
     case 'fulltime':
@@ -202,6 +210,7 @@ function makePlayer(id: number, team: Team, role: Role): Player {
     kickCooldown: 0,
     tackleCooldown: 0,
     stun: 0,
+    dive: 0,
     prevShoot: false,
     prevPass: false,
     prevThrough: false,
@@ -715,7 +724,7 @@ function bounceOffBar(w: World, da: number, db: number, plane: 'xz' | 'xy'): voi
 
 function checkGoal(w: World): void {
   const b = w.ball;
-  if (w.phase !== 'playing') return;
+  if (w.phase !== 'playing' || w.mode === 'penalties') return; // penalties judge their own goals
   if (Math.abs(b.x) <= HALF_L + BALL.radius || Math.abs(b.z) >= GOAL_HALF || b.y >= PITCH.goalHeight) return;
 
   const team: Team = b.x > 0 ? 0 : 1;
@@ -790,3 +799,224 @@ function checkBallContacts(w: World): void {
     }
   }
 }
+
+// --- penalty shootout ---------------------------------------------------------
+// Five kicks each, alternating, then sudden death. Only the taker and the opposing keeper play;
+// everyone else watches from the halfway line.
+
+/** Who has won the shootout so far, or -1 if it isn't decided yet. */
+export function shootoutWinner(kicks: readonly [readonly number[], readonly number[]], kicksEach: number = SHOOTOUT.kicksEach): Team | -1 {
+  const [a, b] = kicks;
+  const sa = a.reduce((n, k) => n + k, 0);
+  const sb = b.reduce((n, k) => n + k, 0);
+  if (a.length <= kicksEach && b.length <= kicksEach) {
+    // Regulation: decided as soon as one side can't catch up with the kicks it has left.
+    if (sa > sb + (kicksEach - b.length)) return 0;
+    if (sb > sa + (kicksEach - a.length)) return 1;
+    return -1;
+  }
+  // Sudden death: decided after each pair of kicks.
+  if (a.length === b.length && sa !== sb) return sa > sb ? 0 : 1;
+  return -1;
+}
+
+const attackerOf = (w: World, team: Team) => w.players.find((p) => p.team === team && p.role === 'attacker')!;
+const keeperOf = (w: World, team: Team) => w.players.find((p) => p.team === team && p.role === 'keeper')!;
+
+/** The player taking the current penalty, and the keeper facing it. */
+export function penaltyDuel(w: World): { taker: Player; keeper: Player } | null {
+  if (!w.shootout) return null;
+  const t = w.shootout.taker;
+  return { taker: attackerOf(w, t), keeper: keeperOf(w, t === 0 ? 1 : 0) };
+}
+
+function setupPenalty(w: World): void {
+  const so = w.shootout!;
+  const dir = attackDir(so.taker);
+  const goalX = dir * HALF_L;
+  const spotX = goalX - dir * SHOOTOUT.spotDistance;
+  const { taker, keeper } = penaltyDuel(w)!;
+
+  w.players.forEach((p, i) => {
+    Object.assign(p, {
+      vx: 0,
+      vz: 0,
+      stamina: 1,
+      sprinting: false,
+      charging: false,
+      charge: 0,
+      kickCooldown: 0,
+      tackleCooldown: 0,
+      stun: 0,
+      dive: 0,
+      prevShoot: false,
+      prevPass: false,
+      prevThrough: false,
+      prevTackle: false,
+    });
+    // Spectators line up on the halfway line, away from the kick.
+    p.x = -dir * (1 + (p.team === so.taker ? 0 : 1.5));
+    p.z = -9 + (i % 3) * 2.5 + p.team * 7.5;
+    p.facing = dir > 0 ? 0 : Math.PI;
+  });
+  Object.assign(taker, { x: spotX - dir * (PLAYER.radius + BALL.radius + 0.12), z: 0, facing: dir > 0 ? 0 : Math.PI });
+  Object.assign(keeper, { x: goalX - dir * 0.6, z: 0, facing: dir > 0 ? Math.PI : 0 });
+
+  Object.assign(w.ball, makeBall(), { x: spotX, z: 0, owner: taker.id, lastTouch: taker.id });
+  so.kicked = false;
+  so.kickTimer = 0;
+  w.phase = 'kickoff';
+  w.phaseTimer = SHOOTOUT.setupTime;
+  emit(w, { type: 'penaltySetup', team: so.taker, player: taker.id });
+}
+
+function stepShootout(w: World, inputs: ReadonlyArray<Input | undefined>): void {
+  const so = w.shootout!;
+  switch (w.phase) {
+    case 'fulltime':
+      return;
+    case 'kickoff':
+      w.phaseTimer -= DT;
+      if (w.phaseTimer <= 0) {
+        w.phase = 'playing';
+        so.kickTimer = 0;
+        emit(w, { type: 'whistle' });
+      }
+      return;
+    case 'goal':
+      // Showing the result: let the ball settle, then the next kick (or the end).
+      w.phaseTimer -= DT;
+      updateBall(w);
+      if (w.phaseTimer <= 0) {
+        if (w.winner !== -1) endMatch(w);
+        else {
+          so.taker = so.taker === 0 ? 1 : 0;
+          setupPenalty(w);
+        }
+      }
+      return;
+    case 'playing':
+      break;
+  }
+
+  so.kickTimer += DT;
+  const { taker, keeper } = penaltyDuel(w)!;
+  const takerInput = inputs[taker.id] ?? NO_INPUT;
+  if (!so.kicked) {
+    takePenalty(w, taker, takerInput);
+    if (!so.kicked && so.kickTimer > SHOOTOUT.timeLimit) {
+      // Took too long: a medium-power kick straight where they're aiming.
+      taker.charge = PLAYER.maxCharge * 0.5;
+      shoot(w, taker, 0);
+      so.kicked = true;
+      so.kickTimer = 0;
+    }
+  }
+  rememberButtons(taker, takerInput);
+  keepGoal(keeper, inputs[keeper.id] ?? NO_INPUT);
+
+  updateBall(w);
+  if (so.kicked) {
+    keeperTouch(w, keeper);
+    judgePenalty(w, taker, keeper);
+  }
+}
+
+/** The taker stands still, turns to aim (within limits), and holds shoot for power. */
+function takePenalty(w: World, p: Player, inp: Input): void {
+  const so = w.shootout!;
+  p.vx = 0;
+  p.vz = 0;
+  const straight = attackDir(p.team) > 0 ? 0 : Math.PI;
+  if (!p.charging && Math.hypot(inp.moveX, inp.moveZ) > 0.15) {
+    // Aim: once charging, the aim is locked and sideways input curls the shot instead.
+    const wanted = Math.atan2(inp.moveZ, inp.moveX);
+    const offset = clamp(wrapAngleTo(wanted, straight), -SHOOTOUT.aimLimit, SHOOTOUT.aimLimit);
+    p.facing = turnTowards(p.facing, straight + offset, SHOOTOUT.aimTurnRate * DT);
+  }
+  if (inp.shoot) {
+    p.charging = true;
+    p.charge = Math.min(PLAYER.maxCharge, p.charge + DT);
+  } else if (p.charging) {
+    const lateral = -inp.moveX * Math.sin(p.facing) + inp.moveZ * Math.cos(p.facing);
+    shoot(w, p, lateral);
+    p.charging = false;
+    p.charge = 0;
+    so.kicked = true;
+    so.kickTimer = 0;
+  }
+}
+
+/** Angle difference `a - b`, wrapped to -PI..PI. */
+function wrapAngleTo(a: number, b: number): number {
+  let d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+
+/** The keeper shuffles along the goal line, and dives (tackle button) the way they're pushing. */
+function keepGoal(p: Player, inp: Input): void {
+  const dir = attackDir(p.team);
+  const homeX = ownGoalX(p.team) + dir * 0.6;
+  if (p.dive > 0) {
+    p.dive = Math.max(0, p.dive - DT);
+    p.vz *= 0.97;
+    if (p.dive === 0) p.stun = SHOOTOUT.diveRecovery; // on the floor for a moment
+  } else if (p.stun > 0) {
+    p.stun = Math.max(0, p.stun - DT);
+    p.vz *= 0.8;
+  } else {
+    const want = clamp(inp.moveZ, -1, 1) * SHOOTOUT.keeperLineSpeed;
+    p.vz += clamp(want - p.vz, -PLAYER.accel * DT, PLAYER.accel * DT);
+    if (inp.tackle && !p.prevTackle) {
+      // Dive the way the stick is pushed; with no direction, a short spring upward (bigger reach).
+      const side = Math.abs(inp.moveZ) > 0.2 ? Math.sign(inp.moveZ) : 0;
+      p.dive = side === 0 ? SHOOTOUT.diveTime * 0.6 : SHOOTOUT.diveTime;
+      p.vz = side * SHOOTOUT.diveSpeed;
+    }
+  }
+  p.x = homeX;
+  p.vx = 0;
+  p.z = clamp(p.z + p.vz * DT, -GOAL_HALF - 0.5, GOAL_HALF + 0.5);
+  p.facing = dir > 0 ? 0 : Math.PI;
+  p.sprinting = false;
+  rememberButtons(p, inp);
+}
+
+/** A keeper who reaches the ball holds it (a diving keeper reaches further). */
+function keeperTouch(w: World, keeper: Player): void {
+  const b = w.ball;
+  if (b.owner >= 0) return;
+  const reach = keeper.dive > 0 ? SHOOTOUT.diveReach : SHOOTOUT.standingReach;
+  if (Math.hypot(b.x - keeper.x, b.z - keeper.z) < reach && b.y < PLAYER.keeperReachHeight) takeBall(w, keeper);
+}
+
+function judgePenalty(w: World, taker: Player, keeper: Player): void {
+  const so = w.shootout!;
+  const b = w.ball;
+  const dir = attackDir(so.taker);
+  const scored = Math.abs(b.x) > HALF_L + BALL.radius && Math.abs(b.z) < GOAL_HALF && b.y < PITCH.goalHeight && b.x * dir > 0;
+  const saved = b.owner === keeper.id;
+  // Wide: level with the goal line but outside the posts (e.g. off the post and along the wall).
+  const wide = Math.abs(b.x) > HALF_L - 1 && Math.abs(b.z) > GOAL_HALF + BALL.radius;
+  const missed =
+    !scored &&
+    !saved &&
+    (wide ||
+      (so.kickTimer > 0.25 && (b.vx * dir < -0.5 || Math.hypot(b.vx, b.vz) < 0.4)) ||
+      so.kickTimer > SHOOTOUT.settleTime);
+  if (!scored && !saved && !missed) return;
+
+  so.kicks[so.taker].push(scored ? 1 : 0);
+  if (scored) {
+    w.score[so.taker]++;
+    emit(w, { type: 'goal', team: so.taker, player: taker.id });
+  } else if (!saved) {
+    emit(w, { type: 'penaltyMiss', team: so.taker, player: taker.id }); // a save already announced itself
+  }
+  w.winner = shootoutWinner(so.kicks);
+  w.phase = 'goal';
+  w.phaseTimer = SHOOTOUT.resultTime;
+}
+

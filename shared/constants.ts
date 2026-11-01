@@ -88,6 +88,23 @@ export const MATCH = {
   goalCelebration: 2.8,
 } as const;
 
+export const SHOOTOUT = {
+  kicksEach: 5, // then sudden death
+  spotDistance: 4.5, // penalty spot, metres from the goal line
+  aimLimit: 0.62, // radians either side of straight: a full turn reaches the corner, not the wall
+  aimTurnRate: 2.2, // radians per second while aiming
+  setupTime: 1.8, // pause before each kick
+  timeLimit: 8, // seconds to take the kick before it's taken for you
+  resultTime: 2.2, // pause after each kick
+  settleTime: 2.5, // a kick that hasn't scored by now has missed
+  keeperLineSpeed: 5.5, // keeper's shuffle along the line
+  diveSpeed: 8,
+  diveTime: 0.45,
+  diveRecovery: 0.6, // time on the floor after a dive
+  diveReach: 1.4,
+  standingReach: 1.05, // a keeper who doesn't dive only saves shots close to them
+} as const;
+
 export const RUSH = {
   max: 100,
   pass: 6, // completed pass between teammates

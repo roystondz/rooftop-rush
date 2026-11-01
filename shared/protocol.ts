@@ -2,7 +2,7 @@
 // every incoming message goes through parseClientMessage, which rejects anything malformed.
 import { BALL } from './constants';
 import { clamp, lerp, wrapAngle } from './math';
-import type { Input, MatchEvent, Phase, Team, World } from './types';
+import type { GameMode, Input, MatchEvent, Phase, Shootout, Team, World } from './types';
 
 export const DEFAULT_PORT = 2567;
 /** The server sends a snapshot every this many ticks (1 = 60 per second). */
@@ -49,6 +49,8 @@ export function unpackInput(p: PackedInput): Input {
 /** Everything a browser needs to draw one moment of the match. */
 export interface Snapshot {
   tick: number;
+  mode: GameMode;
+  shootout: Shootout | null;
   time: number;
   phase: Phase;
   score: [number, number];
@@ -67,16 +69,21 @@ const PLAYER_FIELDS = 8; // x, z, vx, vz, facing, stamina, charge, flags
 const STUNNED = 1;
 const CHARGING = 2;
 const SPRINTING = 4;
+const DIVING = 8;
 
 export function makeSnapshot(w: World, controlled: readonly number[], events: MatchEvent[]): Snapshot {
   const p: number[] = [];
   for (const q of w.players) {
-    const flags = (q.stun > 0 ? STUNNED : 0) | (q.charging ? CHARGING : 0) | (q.sprinting ? SPRINTING : 0);
+    const flags =
+      (q.stun > 0 ? STUNNED : 0) | (q.charging ? CHARGING : 0) | (q.sprinting ? SPRINTING : 0) | (q.dive > 0 ? DIVING : 0);
     p.push(round(q.x, 3), round(q.z, 3), round(q.vx, 2), round(q.vz, 2), round(q.facing, 3), round(q.stamina, 2), round(q.charge, 2), flags);
   }
   const b = w.ball;
+  const so = w.shootout;
   return {
     tick: w.tick,
+    mode: w.mode,
+    shootout: so ? { taker: so.taker, kicks: [[...so.kicks[0]], [...so.kicks[1]]], kicked: so.kicked, kickTimer: round(so.kickTimer, 2) } : null,
     time: round(w.time, 2),
     phase: w.phase,
     score: [w.score[0], w.score[1]],
@@ -95,6 +102,8 @@ export function makeSnapshot(w: World, controlled: readonly number[], events: Ma
 /** Writes a snapshot into an existing World (one made by createWorld) so the renderer can draw it. */
 export function applySnapshot(w: World, s: Snapshot): void {
   w.tick = s.tick;
+  w.mode = s.mode;
+  w.shootout = s.shootout ? { ...s.shootout, kicks: [[...s.shootout.kicks[0]], [...s.shootout.kicks[1]]] } : null;
   w.time = s.time;
   w.phase = s.phase;
   w.score = [s.score[0], s.score[1]];
@@ -116,6 +125,7 @@ export function applySnapshot(w: World, s: Snapshot): void {
     q.stun = flags & STUNNED ? 0.1 : 0;
     q.charging = (flags & CHARGING) !== 0;
     q.sprinting = (flags & SPRINTING) !== 0;
+    q.dive = flags & DIVING ? 0.1 : 0;
   });
   const b = w.ball;
   [b.x, b.y, b.z, b.vx, b.vy, b.vz, b.owner] = s.b;
@@ -144,8 +154,8 @@ export function lerpSnapshots(w: World, a: Snapshot, b: Snapshot, t: number): vo
 // --- messages -----------------------------------------------------------------
 
 export type ClientMessage =
-  | { t: 'quick'; name?: string }
-  | { t: 'create'; name?: string }
+  | { t: 'quick'; name?: string; mode?: GameMode }
+  | { t: 'create'; name?: string; mode?: GameMode }
   | { t: 'join'; code: string; name?: string }
   | { t: 'input'; seq: number; i: PackedInput }
   | { t: 'switch' }
@@ -154,8 +164,8 @@ export type ClientMessage =
   | { t: 'ping'; at: number };
 
 export type ServerMessage =
-  | { t: 'room'; code: string; team: Team; isPublic: boolean }
-  | { t: 'start'; team: Team; names: [string, string] }
+  | { t: 'room'; code: string; team: Team; isPublic: boolean; mode: GameMode }
+  | { t: 'start'; team: Team; names: [string, string]; mode: GameMode }
   | { t: 'snap'; s: Snapshot; ack: number }
   | { t: 'rematch'; team: Team }
   | { t: 'left' }
@@ -179,8 +189,12 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   const name = typeof msg.name === 'string' ? msg.name.slice(0, 64) : undefined;
   switch (msg.t) {
     case 'quick':
-    case 'create':
-      return name === undefined ? { t: msg.t } : { t: msg.t, name };
+    case 'create': {
+      const out: { t: 'quick' | 'create'; name?: string; mode?: GameMode } = { t: msg.t };
+      if (name !== undefined) out.name = name;
+      if (msg.mode === 'match' || msg.mode === 'penalties') out.mode = msg.mode;
+      return out;
+    }
     case 'switch':
     case 'rematch':
     case 'leave':

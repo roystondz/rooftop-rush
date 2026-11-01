@@ -1,6 +1,8 @@
 export type Team = 0 | 1;
 export type Role = 'attacker' | 'midfielder' | 'keeper';
 export type Phase = 'kickoff' | 'playing' | 'goal' | 'fulltime';
+/** A normal match, or a penalty shootout on its own. */
+export type GameMode = 'match' | 'penalties';
 
 /** What one player wants to do this tick. Humans and bots both produce this. */
 export interface Input {
@@ -40,6 +42,8 @@ export interface Player {
   kickCooldown: number;
   tackleCooldown: number;
   stun: number;
+  /** Seconds left of a goalkeeper's dive (penalties). */
+  dive: number;
   prevShoot: boolean;
   prevPass: boolean;
   prevThrough: boolean;
@@ -65,6 +69,8 @@ export interface Ball {
 export type MatchEventType =
   | 'whistle'
   | 'kickoff'
+  | 'penaltySetup'
+  | 'penaltyMiss'
   | 'shot'
   | 'powerShot'
   | 'pass'
@@ -90,8 +96,23 @@ export interface MatchEvent {
   ownGoal?: boolean;
 }
 
+/** Penalty shootout progress. */
+export interface Shootout {
+  /** Team taking the current kick. */
+  taker: Team;
+  /** Each team's kicks so far, in order: 1 = scored, 0 = missed or saved. */
+  kicks: [number[], number[]];
+  /** Whether the current kick has been struck. */
+  kicked: boolean;
+  /** Seconds since the kick (or since the whistle, before it). */
+  kickTimer: number;
+}
+
 export interface World {
   tick: number;
+  mode: GameMode;
+  /** Set in penalties mode. */
+  shootout: Shootout | null;
   time: number; // seconds left on the clock
   phase: Phase;
   phaseTimer: number;

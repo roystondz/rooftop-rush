@@ -1,4 +1,4 @@
-import { PLAYER, RUSH } from '../shared/constants';
+import { PLAYER, RUSH, SHOOTOUT } from '../shared/constants';
 import type { Player, World } from '../shared/types';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -13,6 +13,8 @@ export class Hud {
   private charge = $('charge');
   private stamina = $('stamina');
   private ping = $('ping');
+  private pens = [$('pens-0'), $('pens-1')];
+  private pensShown = '';
   private teamLabels = [$('name-0'), $('name-1')];
   private msgTimer = 0;
 
@@ -55,7 +57,14 @@ export class Hud {
       this.rush[t].style.width = `${pct}%`;
       this.rush[t].parentElement!.classList.toggle('full', pct >= 100);
     }
-    if (w.goldenGoal) {
+    this.root.classList.toggle('penalties', w.mode === 'penalties');
+    if (w.mode === 'penalties' && w.shootout) {
+      const kicks = w.shootout.kicks;
+      const round = Math.min(kicks[0].length, kicks[1].length) + 1;
+      this.clock.textContent = round > SHOOTOUT.kicksEach ? 'SUDDEN DEATH' : 'PENALTIES';
+      this.clock.classList.add('golden');
+      this.showPenaltyDots(kicks);
+    } else if (w.goldenGoal) {
       this.clock.textContent = 'GOLDEN GOAL';
       this.clock.classList.add('golden');
     } else {
@@ -71,5 +80,22 @@ export class Hud {
       this.msgTimer -= frameDt;
       if (this.msgTimer <= 0) this.msg.classList.remove('show');
     }
+  }
+
+  /** Green dot = scored, red = missed or saved, hollow = still to take (first five). */
+  private showPenaltyDots(kicks: readonly [readonly number[], readonly number[]]): void {
+    const key = JSON.stringify(kicks);
+    if (key === this.pensShown) return;
+    this.pensShown = key;
+    const shown = Math.max(SHOOTOUT.kicksEach, kicks[0].length, kicks[1].length);
+    kicks.forEach((list, t) => {
+      const el = this.pens[t];
+      el.innerHTML = '';
+      for (let i = 0; i < shown; i++) {
+        const dot = document.createElement('span');
+        if (i < list.length) dot.className = list[i] ? 'scored' : 'missed';
+        el.append(dot);
+      }
+    });
   }
 }

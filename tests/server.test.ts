@@ -112,6 +112,46 @@ describe('game server', () => {
     b.close();
   });
 
+  it('plays a penalty shootout online: both players get the mode, and kicks are scored', async () => {
+    const a = await TestClient.connect(server.port);
+    a.send({ t: 'create', mode: 'penalties' });
+    const room = await a.waitFor('room');
+    expect(room.mode).toBe('penalties');
+    const b = await TestClient.connect(server.port);
+    b.send({ t: 'join', code: room.code });
+    expect((await a.waitFor('start')).mode).toBe('penalties');
+    expect((await b.waitFor('start')).mode).toBe('penalties');
+
+    // Team 0 takes first: wait for the whistle, aim a little, charge, release.
+    await a.waitFor('snap', (m) => m.s.phase === 'playing' && m.s.mode === 'penalties');
+    let seq = 0;
+    const send = async (i: [number, number, number], ticks: number) => {
+      for (let k = 0; k < ticks; k++) {
+        a.send({ t: 'input', seq: ++seq, i });
+        await new Promise((r) => setTimeout(r, 1000 / 60));
+      }
+    };
+    await send([0.9, 0.43, 0], 20);
+    await send([0, 0, 2], 25); // shoot held
+    await send([0, 0, 0], 5);
+    const result = await b.waitFor('snap', (m) => m.s.shootout !== null && m.s.shootout.kicks[0].length === 1, 6000);
+    expect(result.s.shootout!.kicks[0]).toHaveLength(1);
+    a.close();
+    b.close();
+  });
+
+  it('quick match only pairs players who picked the same mode', async () => {
+    const a = await TestClient.connect(server.port);
+    const b = await TestClient.connect(server.port);
+    a.send({ t: 'quick', mode: 'penalties' });
+    const roomA = await a.waitFor('room');
+    b.send({ t: 'quick', mode: 'match' });
+    const roomB = await b.waitFor('room');
+    expect(roomB.code).not.toBe(roomA.code);
+    a.close();
+    b.close();
+  });
+
   it('pairs two quick-match players together', async () => {
     const a = await TestClient.connect(server.port);
     const b = await TestClient.connect(server.port);

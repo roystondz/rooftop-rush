@@ -28,10 +28,20 @@ npm run dev
 | `npm run typecheck` | Checks the TypeScript for errors |
 | `npm run build` | Builds the final site into `dist/` (upload this folder to any static host) |
 | `npx tsx scripts/botmatch.ts 20 normal` | Plays 20 bot-vs-bot matches without graphics and prints stats (good for balancing) |
+| `npx tsx scripts/penalties.ts 60 normal` | Plays 60 bot-vs-bot shootouts and prints how often penalties go in |
 
 ## Controls
 
-**On a phone or tablet** the game shows on-screen controls automatically: drag anywhere on the left half to move (push to the edge to sprint), and use the SHOOT (hold), PASS, TACKLE, SPRINT and Q buttons on the right. Several fingers work at once. Landscape is recommended; the game suggests turning the phone and, where the browser allows, goes fullscreen.
+**On a phone or tablet** the game shows on-screen controls automatically: drag anywhere on the left half to move (push to the edge to sprint). The four buttons on the right change job with the situation, like FC Mobile and eFootball:
+
+| Situation | Buttons |
+|---|---|
+| Your team has the ball | **SHOOT** (hold) · PASS · THROUGH · SPRINT |
+| The other team has it | **TACKLE** · SWITCH · PRESS (hold to chase) · SPRINT |
+| Penalties, your kick | **SHOOT** (aim with the stick first) |
+| Penalties, in goal | **DIVE** (the way the stick is pushed) |
+
+Several fingers work at once. Landscape is recommended; the game suggests turning the phone and, where the browser allows, goes fullscreen.
 
 
 | Action | Keyboard | Gamepad |
@@ -41,6 +51,8 @@ npm run dev
 | Shoot (hold to charge) | J / Space | X |
 | Curl a shot | Steer sideways while charging | — |
 | Pass | K | A |
+| Through ball (into space ahead of a teammate) | I | Y |
+| Press: hold to chase the ball | E | LT |
 | Tackle (not from behind) | L | B |
 | Switch player (to the teammate with the **Q** badge) | Q | LB |
 | Pause / sound | Esc / M | Start |
@@ -50,6 +62,10 @@ Passes and tackles fill your **Rush** meter. When it's full, your next shot is a
 **Team name:** type your team's name on the main menu (up to 14 letters, numbers or spaces). It's remembered on this device. Online, both players see each other's names; the server tidies them up first, and two identical names are told apart.
 
 **Sound:** ♪ turns all sound on or off (or press M), ♫ turns the background music on or off. The music is generated live in the browser, so there are no audio files and nothing to license.
+
+**Game modes:** pick **Match** (3 minutes, 3v3) or **Penalties** on the menu; both work against bots and online. Quick match only pairs players who picked the same mode; a room code plays whatever its creator picked.
+
+**Penalties:** 5 kicks each, alternating, ending early once one side can't catch up, then sudden death. Taking: aim with the movement keys (a yellow line shows where), hold shoot for power; steer sideways while charging to curl it. In goal: move along the line, then tackle/DIVE dives the way you're pushing (no direction = spring up). Keepers have to guess or react; about 3 in 4 penalties go in.
 
 **Kickoffs:** the kicker starts with the ball and must pass to a teammate first. You can turn on the spot to aim, but not dribble or shoot, and the other team must stay outside the centre circle until the pass. If nobody passes within 6 seconds, the pass is made for you.
 
@@ -82,6 +98,7 @@ client/            Browser only.
   input.ts         Keyboard, gamepad and touch → Input.
   touch.ts         On-screen joystick and buttons for phones (multi-touch).
   joystick.ts      Joystick maths (dead zone, push-to-sprint), kept DOM-free for testing.
+shared/interp.ts   Adaptive smoothing buffer for online play.
   audio.ts         Sound effects, generated in code (no audio files).
   music.ts         Soft background music, generated live (chords, bass, arpeggio).
   settings.ts      Remembers team name, sound and music choices on this device.
@@ -103,7 +120,7 @@ scripts/botmatch.ts  Headless bot matches for balancing.
 1. Each browser reads your keys 60 times a second and sends them as tiny messages: `{"t":"input","seq":42,"i":[0.71,-0.71,3]}` (move x, move z, buttons as bits).
 2. The server queues each player's inputs and uses one per tick. If one arrives late, it keeps you moving the same way but doesn't repeat button taps.
 3. Every 2 ticks (30 times a second) it sends both players a **snapshot**: every player's position, the ball, score, clock and any events. `ack` tells you which of your inputs it has used.
-4. Other players and the ball are drawn about 100 ms in the past, **blending between the two snapshots** either side of that moment, so they move smoothly even though updates only arrive 30 times a second.
+4. Other players and the ball are drawn slightly in the past, **blending between the two snapshots** either side of that moment. The buffer adapts to the connection (`shared/interp.ts`): about 40 ms on a steady line, more when snapshots arrive unevenly. Snapshots arrive 60 times a second.
 5. **Your own player is predicted** (`shared/prediction.ts`), so it responds instantly instead of after a full round trip:
    - Every input you send is also applied straight away in your browser, using the same `moveWithInput` function the server uses.
    - Each snapshot says which of your inputs the server has used (`ack`). The browser starts again from the server's position and re-applies only the inputs it hasn't seen yet. This is **reconciliation**.
@@ -111,7 +128,9 @@ scripts/botmatch.ts  Headless bot matches for balancing.
 6. If inputs pile up after a network hiccup, the server skips ahead (keeping button taps) so you don't stay behind.
 7. The server checks every message (`parseClientMessage`) and limits how many each client may send. A client can't move faster, teleport, or control someone else's player.
 
-**What isn't predicted:** passes, shots and tackles still wait for the server, because they involve other players and the ball. With a 250 ms ping, your movement responds in about 2 frames, and a shot leaves your foot after about a quarter of a second.
+6. **Your own shots and passes are predicted too** (`KickPredictor`): the kick runs on a copy of the latest snapshot, so the ball leaves your foot immediately and flies with the same physics. If someone else touches it, it glides over to the server's ball.
+
+**What isn't predicted:** tackles, other people's actions, and the keeper during penalties. Those arrive after your ping (about 185 ms from the Gulf to Render's Frankfurt servers) plus the small smoothing buffer.
 
 ## Deploying (free)
 

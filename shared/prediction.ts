@@ -83,7 +83,8 @@ export class Predictor {
     Object.assign(this.state, server);
     this.playerId = playerId;
     this.hasBall = s.b[6] === playerId;
-    this.active = s.phase === 'playing' && server.stun <= 0;
+    // Penalties are a duel of two players on fixed spots; the server's word is used directly.
+    this.active = s.phase === 'playing' && server.stun <= 0 && s.mode === 'match';
     this.takingKickoff = s.kickoffPending && this.hasBall;
     this.keepOutOfCircle = s.kickoffPending && server.team !== s.kickoffTeam;
     if (this.active) for (const p of this.pending) this.apply(p.input);

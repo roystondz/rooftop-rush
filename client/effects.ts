@@ -10,6 +10,8 @@ export class Effects {
   names: [string, string] = [...DEFAULT_TEAM_NAMES];
   /** How to tell the player to pass: "press K" on a keyboard, "tap PASS" on a phone. */
   passHint = 'press K';
+  /** How to take a penalty, and how to save one, on this device. */
+  penaltyHints = { take: 'aim with the arrows, hold J to shoot', save: 'W/S to move, L to dive' };
   onFullTime: (w: World) => void = () => {};
   private lastPhase: Phase | null = null;
 
@@ -27,7 +29,7 @@ export class Effects {
   /** Call whenever the world changes, so phase changes (like a new kickoff) get announced. */
   watchPhase(w: World): void {
     if (w.phase === this.lastPhase) return;
-    if (w.phase === 'kickoff') this.hud.message('KICK OFF', '', 1.2);
+    if (w.phase === 'kickoff' && w.mode === 'match') this.hud.message('KICK OFF', '', 1.2);
     if (w.phase === 'playing' && this.lastPhase === 'kickoff' && w.kickoffPending && w.kickoffTeam === this.myTeam) {
       this.hud.message('PASS TO START', `Turn to aim, then ${this.passHint}`, 1.8);
     }
@@ -80,6 +82,18 @@ export class Effects {
       case 'rushReady':
         this.sfx.rushReady();
         if (ours) this.hud.message('RUSH READY', 'Your next shot is a power shot', 1.4);
+        break;
+      case 'penaltySetup': {
+        const kicks = w.shootout?.kicks;
+        const n = kicks ? kicks[e.team ?? 0].length + 1 : 1;
+        const title = ours ? 'YOUR PENALTY' : 'SAVE IT!';
+        const hint = ours ? this.penaltyHints.take : this.penaltyHints.save;
+        this.hud.message(title, `Kick ${n} · ${hint}`, 2);
+        break;
+      }
+      case 'penaltyMiss':
+        this.sfx.crowdSwell(0.7);
+        this.hud.message('MISSED!', '', 1.6);
         break;
       case 'goldenGoal':
         this.hud.message('GOLDEN GOAL', 'Next goal wins', 2);

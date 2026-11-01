@@ -16,7 +16,7 @@ import {
 import { pressToward, switchTarget } from '../shared/control';
 import { carriedBallPosition, createWorld } from '../shared/sim';
 import { NO_INPUT } from '../shared/types';
-import type { Input, MatchEventType, Team, World } from '../shared/types';
+import type { GameMode, Input, MatchEventType, Team, World } from '../shared/types';
 import type { Effects } from './effects';
 import type { Hud } from './hud';
 import type { InputManager } from './input';
@@ -30,7 +30,7 @@ const BALL_TOUCHED: readonly MatchEventType[] = ['possession', 'save', 'tackle',
 const BALL_SMOOTHING = 10;
 
 export interface OnlineCallbacks {
-  room(code: string, isPublic: boolean): void;
+  room(code: string, isPublic: boolean, mode: GameMode): void;
   start(team: Team, names: [string, string]): void;
   rematchRequested(team: Team): void;
   opponentLeft(): void;
@@ -232,13 +232,13 @@ export class OnlineGame {
     switch (m.t) {
       case 'room':
         this.team = m.team;
-        this.on.room(m.code, m.isPublic);
+        this.on.room(m.code, m.isPublic, m.mode);
         break;
       case 'start':
         this.team = m.team;
         this.snaps = [];
-        this.view = createWorld();
-        this.latest = createWorld();
+        this.view = createWorld({ mode: m.mode });
+        this.latest = createWorld({ mode: m.mode });
         this.clock = new InterpolationClock();
         this.predictor = new Predictor();
         this.kick = new KickPredictor();

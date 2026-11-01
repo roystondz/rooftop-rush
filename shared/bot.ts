@@ -1,7 +1,7 @@
 // Bots press the same "buttons" a human does: they only ever return an Input.
 import { DT, PITCH, PLAYER } from './constants';
 import { clamp, lerp, mulberry32, wrapAngle } from './math';
-import { attackDir, bestPassTarget, isBehind, ownGoalX } from './sim';
+import { attackDir, bestPassTarget, isBehind, ownGoalX, penaltyDuel } from './sim';
 import type { Input, Player, World } from './types';
 
 export interface BotSkill {
@@ -31,6 +31,8 @@ export class Bot {
   private possessionTicks = 0;
   private lastPass = false;
   private lastTackle = false;
+  /** Penalty plans, decided once per kick. */
+  private pen: { aimZ: number; power: number; wait: number; guess: number; reacted: boolean } | null = null;
   private readonly rng: () => number;
 
   constructor(
@@ -47,6 +49,7 @@ export class Bot {
     this.possessionTicks = 0;
     this.lastPass = false;
     this.lastTackle = false;
+    this.pen = null;
   }
 
   /** `humanIds` are players controlled by people; bots leave chasing to them when they are closest. */
@@ -57,6 +60,10 @@ export class Bot {
       return out;
     }
     const p = w.players[this.playerId];
+    if (w.mode === 'penalties') {
+      this.penalty(w, p, out);
+      return this.finish(out);
+    }
     const hasBall = w.ball.owner === p.id;
     this.possessionTicks = hasBall ? this.possessionTicks + 1 : 0;
 
@@ -74,6 +81,74 @@ export class Bot {
     else if (hasBall) this.withBall(w, p, out);
     else this.withoutBall(w, p, out, humanIds);
     return this.finish(out);
+  }
+
+  /** Taking a penalty: pick a corner, aim, charge, shoot. Saving one: guess early or react late. */
+  private penalty(w: World, p: Player, out: Input): void {
+    const duel = penaltyDuel(w);
+    const so = w.shootout;
+    if (!duel || !so) return;
+    if (!this.pen) {
+      this.pen = {
+        aimZ: (this.rng() < 0.5 ? -1 : 1) * (GOAL_HALF - 0.9) + (this.rng() - 0.5) * 2 * this.skill.aimError * 0.6,
+        power: 0.55 + this.rng() * 0.4,
+        wait: 25 + Math.floor(this.rng() * 50),
+        // How likely the keeper is to commit to a side as the kick is struck (instead of reacting).
+        guess: this.rng() < 0.5 ? (this.rng() < 0.5 ? -1 : 1) : 0,
+        reacted: false,
+      };
+    }
+    const plan = this.pen;
+    const b = w.ball;
+
+    if (p.id === duel.taker.id && !so.kicked) {
+      if (plan.wait-- > 0) return;
+      const goalX = attackDir(p.team) * HALF_L;
+      const dx = goalX - b.x;
+      const dz = plan.aimZ - b.z;
+      const aim = Math.atan2(dz, dx);
+      if (this.shootTicks > 0) {
+        this.shootTicks--;
+        out.shoot = this.shootTicks > 0; // letting go fires it
+        return;
+      }
+      if (Math.abs(wrapAngle(aim - p.facing)) > 0.04) {
+        out.moveX = Math.cos(aim);
+        out.moveZ = Math.sin(aim);
+        return;
+      }
+      this.shootTicks = Math.max(2, Math.round((plan.power * PLAYER.maxCharge) / DT));
+      out.shoot = true;
+      return;
+    }
+
+    if (p.id === duel.keeper.id) {
+      if (!so.kicked) {
+        out.moveZ = clamp(-p.z, -1, 1) * 0.6; // stay central
+        return;
+      }
+      if (plan.reacted) return;
+      if (plan.guess !== 0) {
+        // Committed early to a side.
+        out.moveZ = plan.guess;
+        out.tackle = true;
+        plan.reacted = true;
+        return;
+      }
+      // Reacting: wait a moment (sharper keepers react sooner), then dive toward the shot.
+      // Humans need roughly 0.2 s to react, so most saves come from guessing the right side.
+      const reaction = 0.12 + (1 - this.skill.keeperFocus) * 0.4;
+      if (so.kickTimer < reaction || Math.abs(b.vx) < 1) return;
+      const t = (p.x - b.x) / b.vx;
+      const zAt = t > 0 ? b.z + b.vz * t : b.z;
+      if (Math.abs(zAt - p.z) > 0.6) {
+        out.moveZ = Math.sign(zAt - p.z);
+        out.tackle = true;
+      } else {
+        out.tackle = true; // straight at them: spring up
+      }
+      plan.reacted = true;
+    }
   }
 
   private finish(out: Input): Input {

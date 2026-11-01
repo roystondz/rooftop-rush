@@ -14,12 +14,14 @@
           <span class="name" id="name-0">SKYLINE</span>
           <span class="score" id="score-0">0</span>
           <div class="rush"><div class="rush-fill" id="rush-0"></div><span class="rush-label">RUSH</span></div>
+          <div class="pens" id="pens-0"></div>
         </div>
         <div class="clock" id="clock">3:00</div>
         <div class="team team-1">
           <span class="score" id="score-1">0</span>
           <span class="name" id="name-1">NEON</span>
           <div class="rush"><div class="rush-fill" id="rush-1"></div><span class="rush-label">RUSH</span></div>
+          <div class="pens" id="pens-1"></div>
         </div>
       </div>
 
@@ -67,6 +69,10 @@
           <span>Your team name</span>
           <input id="team-name" maxlength="14" placeholder="SKYLINE" autocomplete="off" spellcheck="false" />
         </label>
+        <div class="mode-pick">
+          <button data-game-mode="match" class="selected">Match<small>3 minutes, 3v3</small></button>
+          <button data-game-mode="penalties">Penalties<small>shootout</small></button>
+        </div>
         <div class="difficulty">
           <button data-difficulty="easy">Easy</button>
           <button data-difficulty="normal" class="selected">Normal</button>

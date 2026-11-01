@@ -6,6 +6,7 @@ import {
   autoSwitch,
   autoSwitchDefending,
   pressToward,
+  startingPlayer,
   switchTarget,
   switchToNearest,
   SwitchTimer,
@@ -13,7 +14,7 @@ import {
   type Handover,
 } from '../shared/control';
 import { createWorld, step } from '../shared/sim';
-import type { Input, Team, World } from '../shared/types';
+import type { GameMode, Input, Team, World } from '../shared/types';
 import type { Effects } from './effects';
 import type { Hud } from './hud';
 import type { InputManager } from './input';
@@ -41,15 +42,15 @@ export class Game {
     return this.controlled[this.humanTeam];
   }
 
-  start(difficulty: Difficulty): void {
-    const w = createWorld();
+  start(difficulty: Difficulty, mode: GameMode = 'match'): void {
+    const w = createWorld({ mode });
     const skill = BOT_SKILLS[difficulty];
     for (const p of w.players) if (p.team !== this.humanTeam) p.speedScale = skill.speedScale;
     // Your teammates always play at normal level; the difficulty only changes the opponents.
     this.bots = w.players.map((p) => new Bot(p.id, p.team === this.humanTeam ? BOT_SKILLS.normal : skill));
     this.world = w;
     this.controlled = [-1, -1];
-    this.controlled[this.humanTeam] = w.players.find((p) => p.team === this.humanTeam && p.role === 'attacker')!.id;
+    this.controlled[this.humanTeam] = startingPlayer(w, this.humanTeam);
     this.prev = null;
     this.acc = 0;
     this.paused = false;

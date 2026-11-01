@@ -1,4 +1,5 @@
 // Which player each human controls. Used by the local game and by the server, so both behave the same.
+import { penaltyDuel } from './sim';
 import type { MatchEvent, Team, World } from './types';
 
 /** `controlled[team]` is the player id a human controls on that team, or -1 when that team is all bots. */
@@ -46,6 +47,15 @@ export function autoSwitch(
     changes.push({ from: current, to: next });
   };
   for (const e of events) {
+    if (e.type === 'penaltySetup') {
+      // Penalties: you take the kick for your team, and go in goal for theirs.
+      const duel = penaltyDuel(w);
+      if (duel) {
+        set(duel.taker.team, duel.taker.id);
+        set(duel.keeper.team, duel.keeper.id);
+      }
+      continue;
+    }
     if (e.type === 'kickoff') {
       for (const team of [0, 1] as const) {
         const attacker = w.players.find((p) => p.team === team && p.role === 'attacker');
@@ -81,7 +91,7 @@ export function switchTarget(w: World, controlled: Controlled, team: Team): numb
 /** Switch button: take over the teammate nearest the ball (not while you have it). */
 export function switchToNearest(w: World, controlled: Controlled, team: Team, timer?: SwitchTimer): Handover | null {
   const current = controlled[team];
-  if (current === undefined || current < 0 || w.ball.owner === current) return null;
+  if (current === undefined || current < 0 || w.ball.owner === current || w.mode === 'penalties') return null;
   const best = switchTarget(w, controlled, team);
   if (best < 0) return null;
   controlled[team] = best;
@@ -95,7 +105,9 @@ export function switchToNearest(w: World, controlled: Controlled, team: Team, ti
  */
 export function autoSwitchDefending(w: World, controlled: Controlled, team: Team, timer: SwitchTimer): Handover | null {
   const current = controlled[team];
-  if (current === undefined || current < 0 || w.phase !== 'playing' || w.kickoffPending) return null;
+  if (current === undefined || current < 0 || w.phase !== 'playing' || w.kickoffPending || w.mode === 'penalties') {
+    return null;
+  }
   const b = w.ball;
   if (b.owner >= 0 && w.players[b.owner].team === team) return null; // we have it
   // Our own pass or shot is still travelling: that's not defending.
@@ -128,3 +140,11 @@ export function pressToward(me: { x: number; z: number }, ball: { x: number; z: 
   if (d < 0.3) return { moveX: 0, moveZ: 0, sprint: false };
   return { moveX: dx / d, moveZ: dz / d, sprint: d > 3 };
 }
+
+/** Who a human on `team` controls at the start: the attacker, or in penalties whoever is involved. */
+export function startingPlayer(w: World, team: Team): number {
+  const duel = penaltyDuel(w);
+  if (duel) return duel.taker.team === team ? duel.taker.id : duel.keeper.id;
+  return w.players.find((p) => p.team === team && p.role === 'attacker')!.id;
+}
+
