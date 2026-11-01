@@ -106,7 +106,7 @@ The whole game runs as **one Render web service**: the Node server serves the bu
    git remote add origin https://github.com/YOUR-NAME/rooftop-rush.git
    git push -u origin main
    ```
-2. **Create the service on Render.** Sign up at https://render.com (free, no card needed for the free plan), choose **New → Blueprint**, connect GitHub, and pick the `rooftop-rush` repository. Render reads `render.yaml` and starts building. The first build takes a few minutes.
+2. **Create the service on Render.** Sign up at https://render.com (free, no card needed for the free plan), choose **New → Blueprint**, connect GitHub, and pick the `rooftop-rush` repository. Render reads `render.yaml` and starts building. The first build takes a few minutes. The server runs in Render's **Frankfurt** region (set in `render.yaml`), the closest to the Middle East; pick the region nearest your players.
 3. **Play.** Render gives you an address like `https://rooftop-rush-xxxx.onrender.com`. Open it, choose *Play online → Create private room*, and send your friend the address and code.
 4. **Updates deploy themselves:** every `git push` to `main` rebuilds and redeploys.
 

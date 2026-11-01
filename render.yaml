@@ -5,6 +5,9 @@ services:
     name: rooftop-rush
     runtime: node
     plan: free
+    # Closest Render region to the Middle East. Render can't move a service between regions,
+    # so changing this means creating the service again.
+    region: frankfurt
     # Install everything (the build needs Vite and TypeScript), build the page, then run the server.
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
