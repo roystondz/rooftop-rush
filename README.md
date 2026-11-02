@@ -121,7 +121,7 @@ scripts/botmatch.ts  Headless bot matches for balancing.
 
 1. Each browser reads your keys 60 times a second and sends them as tiny messages: `{"t":"input","seq":42,"i":[0.71,-0.71,3]}` (move x, move z, buttons as bits).
 2. The server queues each player's inputs and uses one per tick. If one arrives late, it keeps you moving the same way but doesn't repeat button taps.
-3. Every 2 ticks (30 times a second) it sends both players a **snapshot**: every player's position, the ball, score, clock and any events. `ack` tells you which of your inputs it has used.
+3. Every tick (60 times a second) it sends everyone a **snapshot**: every player's position, the ball, score, clock, who controls which player, and any events. `ack` tells you which of your inputs it has used.
 4. Other players and the ball are drawn slightly in the past, **blending between the two snapshots** either side of that moment. The buffer adapts to the connection (`shared/interp.ts`): about 40 ms on a steady line, more when snapshots arrive unevenly. Snapshots arrive 60 times a second.
 5. **Your own player is predicted** (`shared/prediction.ts`), so it responds instantly instead of after a full round trip:
    - Every input you send is also applied straight away in your browser, using the same `moveWithInput` function the server uses.
