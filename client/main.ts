@@ -1,11 +1,13 @@
 import './style.css';
 import type { Difficulty } from '../shared/bot';
+import { QUICK_CHAT } from '../shared/chat';
 import { DEFAULT_KITS, KITS, kitCss, teamKits } from '../shared/kits';
 import { DEFAULT_TEAM_NAMES, MAX_TEAM_NAME, teamNames } from '../shared/names';
 import type { World } from '../shared/types';
 import { Sfx } from './audio';
 import { Effects } from './effects';
 import { Game } from './game';
+import { BUZZ, Haptics } from './haptics';
 import { Hud } from './hud';
 import { InputManager } from './input';
 import { isTouchDevice } from './joystick';
@@ -36,12 +38,16 @@ if (touch) {
   hud.skipHint = 'Tap any button to skip';
   effects.penaltyHints = { take: 'aim with the stick, hold SHOOT', save: 'stick to move, DIVE' };
 }
+const haptics = new Haptics(touchDevice);
+effects.haptics = haptics;
 const game = new Game(renderer, hud, input, effects);
 let online: OnlineGame | null = null;
 let mode: 'menu' | 'local' | 'online' = 'menu';
 let difficulty: Difficulty = 'normal';
 let gameMode: GameMode = 'match';
 const settings = loadSettings();
+haptics.enabled = settings.vibration;
+effects.controlled = () => (mode === 'local' ? game.controlledId : (online?.controlledId ?? -1));
 let stats = loadStats();
 /** Who the current match is against, for your stats. */
 let opponent: Opponent = 'normal';
@@ -235,6 +241,11 @@ async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<v
     notice(text) {
       toast(text);
     },
+    chat(m) {
+      const text = QUICK_CHAT[m.id];
+      if (online?.started) hud.chat(m.name, m.team, text);
+      else toast(`${m.name}: ${text}`); // in the lobby
+    },
     error(message) {
       setStatus(message, true);
       leaveOnline();
@@ -376,6 +387,42 @@ nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') playLocal();
 });
 
+// --- install as an app ------------------------------------------------------------------
+
+/** Works offline against bots once installed, and opens instantly. Production build only. */
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+
+type InstallPrompt = Event & { prompt(): Promise<void> };
+let installPrompt: InstallPrompt | null = null;
+const installed =
+  matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches ||
+  (navigator as Navigator & { standalone?: boolean }).standalone === true;
+// iPhones and iPads have no install prompt: we show how to add it to the home screen instead.
+const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+$('install-btn').classList.toggle('hidden', installed || !isIos);
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); // show our own button instead of the browser's banner
+  installPrompt = e as InstallPrompt;
+  $('install-btn').classList.remove('hidden');
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  $('install-btn').classList.add('hidden');
+  $('install-help').classList.add('hidden');
+});
+$('install-btn').addEventListener('click', () => {
+  if (installPrompt) {
+    void installPrompt.prompt();
+    installPrompt = null;
+    $('install-btn').classList.add('hidden');
+  } else {
+    $('install-help').classList.toggle('hidden');
+  }
+});
+
 // --- kit -------------------------------------------------------------------------------
 
 const kitPick = $('kit-pick');
@@ -425,7 +472,18 @@ function toggleMusic(): void {
   showSoundState();
 }
 
+$('vibration-toggle').classList.toggle('hidden', !haptics.supported);
+$('vibration-toggle').addEventListener('click', () => {
+  settings.vibration = !settings.vibration;
+  haptics.enabled = settings.vibration;
+  saveSettings(settings);
+  if (settings.vibration) haptics.buzz(BUZZ.tackle); // a little buzz so you know it's on
+  showSoundState();
+});
+
 function showSoundState(): void {
+  $('vibration-toggle').classList.toggle('off', !settings.vibration);
+  $('vibration-toggle').textContent = `Vibration: ${settings.vibration ? 'on' : 'off'}`;
   $('mute-btn').classList.toggle('muted', sfx.muted);
   $('music-btn').classList.toggle('off', !settings.music);
   $('music-toggle').classList.toggle('off', !settings.music);
@@ -437,8 +495,29 @@ showSoundState();
 // The first click anywhere (e.g. on a menu button) starts the music, if it's switched on.
 window.addEventListener('pointerdown', startAudio, { once: true });
 
+// --- quick chat (online) -----------------------------------------------------------
+
+const chatPick = $('chat-pick');
+QUICK_CHAT.forEach((text, i) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = text;
+  btn.dataset.key = String(i + 1);
+  btn.addEventListener('click', () => sendChat(i));
+  chatPick.append(btn);
+});
+$('chat-btn').addEventListener('click', () => chatPick.classList.toggle('hidden'));
+
+function sendChat(id: number): void {
+  chatPick.classList.add('hidden');
+  if (mode === 'online' && online?.started) online.chat(id);
+}
+
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return; // typing a room code
+  // Keys 1–6 send quick chat during an online match.
+  const n = Number(e.key);
+  if (mode === 'online' && online?.started && Number.isInteger(n) && n >= 1 && n <= QUICK_CHAT.length) sendChat(n - 1);
   if (e.code === 'Escape' || e.code === 'KeyP') setPaused($('pause').classList.contains('hidden'));
   if (e.code === 'KeyM') toggleMute();
   if (e.code === 'Enter' && mode === 'menu' && !$('menu').classList.contains('hidden')) playLocal();

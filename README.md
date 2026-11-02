@@ -88,6 +88,7 @@ shared/            Runs the same in the browser and on the server. No graphics, 
   interp.ts        Adaptive smoothing buffer for online play.
   names.ts         Cleaning and pairing team names.
   kits.ts          Shirt colours, and picking two that don't clash.
+  chat.ts          The quick-chat messages (a fixed list, nothing typed).
 server/            Node.js only.
   server.ts        WebSocket server: quick match, room codes, rate limiting.
   room.ts          One room: lobby (teams, host), then the match at 60 ticks/s with 60 snapshots a second.
@@ -99,6 +100,7 @@ client/            Browser only.
   net.ts           WebSocket connection, server address, and the ?lag= simulator.
   effects.ts       Match events → sounds, screen shake, messages.
   crowd.ts         When the crowd reacts: shots on target, near misses, attacks, last 30 s, full time.
+  haptics.ts       Phone vibration for shots, tackles and goals.
   replay.ts        Instant replay: keeps the last few seconds and replays goals in slow motion.
   stats.ts         Your record (results, goals, penalties, streaks), saved in this browser.
   stats-view.ts    The "Your stats" screen.
@@ -112,6 +114,8 @@ client/            Browser only.
   hud.ts           Score, clock, Rush and power meters.
 tests/             Automated tests: rules, protocol, and the real server with test clients.
 scripts/botmatch.ts  Headless bot matches for balancing.
+scripts/make-icons.ts  Draws the app icons into public/icons/.
+public/            Copied as-is into the build: app manifest, service worker (offline play), icons.
 ```
 
 ### Key ideas worth understanding
@@ -176,4 +180,5 @@ Then open http://localhost:3000.
 7. ~~Goal celebrations and instant replays (local and online)~~ ✅
 8. ~~Your stats, saved in the browser (accounts can sync them later)~~ ✅
 9. ~~Kit colours, invite links, crowd reactions~~ ✅
-10. Accounts and leaderboard with Supabase.
+10. ~~Install as an app (works offline vs bots), phone vibration, quick chat~~ ✅
+11. Accounts and leaderboard with Supabase.

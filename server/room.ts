@@ -14,6 +14,7 @@ import {
   type Handover,
   type Human,
 } from '../shared/control';
+import { CHAT_COOLDOWN_MS } from '../shared/chat';
 import { cleanKit, DEFAULT_KITS, teamKits } from '../shared/kits';
 import { cleanTeamName, DEFAULT_TEAM_NAMES, teamNames } from '../shared/names';
 import {
@@ -58,6 +59,7 @@ export interface Seat {
   last: Input;
   lastSeq: number; // highest input number received
   ack: number; // input number last used by the simulation
+  lastChat: number; // when this person last sent a quick-chat message (ms)
 }
 
 export class Room {
@@ -120,6 +122,7 @@ export class Room {
       last: { ...NO_INPUT },
       lastSeq: -1,
       ack: -1,
+      lastChat: 0,
     };
     this.seats[index] = seat;
     if (this.host < 0) this.host = index;
@@ -185,6 +188,14 @@ export class Room {
       case 'start':
         if (!this.world && seat.seat === this.host && this.canStart()) this.start();
         break;
+      case 'chat': {
+        // Quick chat goes to everyone in the room, at most once a second per person.
+        const now = Date.now();
+        if (now - seat.lastChat < CHAT_COOLDOWN_MS) return;
+        seat.lastChat = now;
+        for (const s of this.seats) s?.send({ t: 'chat', seat: seat.seat, team: seat.team, name: seat.name, id: msg.id });
+        break;
+      }
       case 'leave':
         this.leave(seat);
         break;

@@ -1,6 +1,7 @@
 // Messages between browser and server. The server never trusts what a client sends:
 // every incoming message goes through parseClientMessage, which rejects anything malformed.
 import { BALL } from './constants';
+import { isChatId } from './chat';
 import { KITS } from './kits';
 import { clamp, lerp, wrapAngle } from './math';
 import type { GameMode, Input, MatchEvent, Phase, Shootout, Team, World } from './types';
@@ -165,6 +166,7 @@ export type ClientMessage =
   | { t: 'start' } // lobby: the host starts the match
   | { t: 'input'; seq: number; i: PackedInput }
   | { t: 'switch' }
+  | { t: 'chat'; id: number } // quick chat: an index into QUICK_CHAT
   | { t: 'leave' }
   | { t: 'ping'; at: number };
 
@@ -199,6 +201,7 @@ export type ServerMessage =
   | { t: 'start'; you: number; team: Team; names: [string, string]; kits: [number, number]; mode: GameMode }
   | { t: 'snap'; s: Snapshot; ack: number }
   | { t: 'notice'; text: string }
+  | { t: 'chat'; seat: number; team: Team; name: string; id: number }
   | { t: 'error'; message: string }
   | { t: 'pong'; at: number };
 
@@ -243,6 +246,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     }
     case 'ping':
       return isNum(msg.at) ? { t: 'ping', at: msg.at } : null;
+    case 'chat':
+      return isChatId(msg.id) ? { t: 'chat', id: msg.id } : null;
     case 'input': {
       const i = msg.i;
       if (!isNum(msg.seq) || !Array.isArray(i) || i.length !== 3 || !i.every(isNum)) return null;

@@ -7,12 +7,14 @@ export interface Settings {
   music: boolean;
   /** Index into KITS. */
   kit: number;
+  /** Phone vibration on shots, tackles and goals. */
+  vibration: boolean;
 }
 
 import { cleanKit, DEFAULT_KITS } from '../shared/kits';
 
 const KEY = 'rooftop-rush.settings';
-const DEFAULTS: Settings = { teamName: '', muted: false, music: true, kit: DEFAULT_KITS[0] };
+const DEFAULTS: Settings = { teamName: '', muted: false, music: true, kit: DEFAULT_KITS[0], vibration: true };
 
 export function loadSettings(): Settings {
   try {
@@ -24,6 +26,7 @@ export function loadSettings(): Settings {
       muted: typeof saved.muted === 'boolean' ? saved.muted : DEFAULTS.muted,
       music: typeof saved.music === 'boolean' ? saved.music : DEFAULTS.music,
       kit: cleanKit(saved.kit, DEFAULTS.kit),
+      vibration: typeof saved.vibration === 'boolean' ? saved.vibration : DEFAULTS.vibration,
     };
   } catch {
     return { ...DEFAULTS };

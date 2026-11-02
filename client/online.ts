@@ -37,6 +37,8 @@ export interface OnlineCallbacks {
   start(team: Team, names: [string, string]): void;
   /** A short message to show, e.g. someone joined or left. */
   notice(text: string): void;
+  /** Someone in the room sent a quick-chat message. */
+  chat(m: { seat: number; team: Team; name: string; id: number }): void;
   error(message: string): void;
   disconnected(): void;
 }
@@ -102,6 +104,11 @@ export class OnlineGame {
     this.started = false;
     this.hud.hide();
     this.renderer.setReplay(null);
+  }
+
+  /** Quick chat: send message number `id` from QUICK_CHAT to everyone in the room. */
+  chat(id: number): void {
+    this.conn.send({ t: 'chat', id });
   }
 
   /** Lobby: move to the other team. */
@@ -327,6 +334,9 @@ export class OnlineGame {
         break;
       case 'notice':
         this.on.notice(m.text);
+        break;
+      case 'chat':
+        this.on.chat(m);
         break;
       case 'error':
         this.on.error(m.message);

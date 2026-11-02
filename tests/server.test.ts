@@ -308,6 +308,22 @@ describe('online play', () => {
     closeAll(clients);
   });
 
+  it('sends quick chat to everyone in the room, at most once a second each', async () => {
+    const [[a, b]] = await lobbyWith(2, { name: 'Host' });
+    a.send({ t: 'chat', id: 0 });
+    const got = await b.waitFor('chat');
+    expect(got).toMatchObject({ seat: 0, team: 0, name: 'HOST', id: 0 });
+    await a.waitFor('chat'); // the sender sees their own message too
+    a.send({ t: 'chat', id: 5 }); // too soon after the last one: dropped
+    a.send({ t: 'chat', id: 99 }); // not a quick-chat message at all
+    await pause(150);
+    expect(b.messages.filter((m) => m.t === 'chat')).toHaveLength(1);
+    await pause(1000);
+    a.send({ t: 'chat', id: 5 });
+    await b.waitFor('chat', (m) => m.id === 5);
+    closeAll([a, b]);
+  });
+
   it("tells everyone the team names, cleaned up", async () => {
     const [[a, b]] = await lobbyWith(1, { name: '  red lions ' }).then(async ([[host], code]) => {
       const friend = await TestClient.connect(server.port);
@@ -384,6 +400,8 @@ describe('serving the built game', () => {
     await writeFile(path.join(dir, 'index.html'), '<h1>game</h1>');
     await mkdir(path.join(dir, 'assets'));
     await writeFile(path.join(dir, 'assets', 'app-123.js'), 'console.log(1)');
+    await writeFile(path.join(dir, 'manifest.webmanifest'), '{}');
+    await writeFile(path.join(dir, 'sw.js'), '// sw');
     const s = await startServer(0, dir);
     const base = `http://localhost:${s.port}`;
     try {
@@ -395,6 +413,13 @@ describe('serving the built game', () => {
       const js = await fetch(base + '/assets/app-123.js');
       expect(js.headers.get('content-type')).toContain('javascript');
       expect(js.headers.get('cache-control')).toContain('immutable');
+
+      // The app manifest gets its proper type; the service worker is never cached for long,
+      // so a new version of it is picked up straight away.
+      expect((await fetch(base + '/manifest.webmanifest')).headers.get('content-type')).toBe('application/manifest+json');
+      const sw = await fetch(base + '/sw.js');
+      expect(sw.headers.get('content-type')).toContain('javascript');
+      expect(sw.headers.get('cache-control')).toBe('no-cache');
 
       expect((await fetch(base + '/health')).status).toBe(200);
       expect((await fetch(base + '/missing.js')).status).toBe(404);

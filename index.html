@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Rooftop Rush</title>
+    <meta name="description" content="3v3 cage football above the city. Play bots, or friends online." />
+    <meta name="theme-color" content="#070b1c" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Rooftop Rush" />
   </head>
   <body>
     <canvas id="game"></canvas>
@@ -38,6 +47,9 @@
 
       <span id="ping" class="ping hidden"></span>
       <button id="pause-btn" class="icon-btn" title="Pause (Esc)">II</button>
+      <button id="chat-btn" class="icon-btn hidden" title="Quick chat (keys 1–6)" aria-label="Quick chat">💬</button>
+      <div id="chat-pick" class="chat-pick hidden"></div>
+      <ol id="chat-feed" class="chat-feed" aria-live="polite"></ol>
       <button id="mute-btn" class="icon-btn" title="Sound on/off (M)">♪</button>
       <button id="music-btn" class="icon-btn" title="Music on/off">♫</button>
     </div>
@@ -91,6 +103,11 @@
         <button id="play" class="primary">Play vs bots</button>
         <button id="online-btn">Play online</button>
         <button id="stats-btn">Your stats</button>
+        <button id="install-btn" class="hidden">Install app</button>
+        <p id="install-help" class="install-help hidden">
+          On iPhone or iPad: tap <b>Share</b> <span aria-hidden="true">⬆︎</span>, then <b>Add to Home Screen</b>.
+          It opens full screen, like an app.
+        </p>
         <div class="touch-help">
           <div><b>Left thumb:</b> drag anywhere on the left to move, push to the edge to sprint</div>
           <div><b>SHOOT:</b> hold to charge, let go to shoot — steer while charging to curl</div>
@@ -107,7 +124,10 @@
           <div><kbd>Esc</kbd> pause · <kbd>M</kbd> sound</div>
           <div class="pad">Gamepad: stick move · A pass · Y through · X shoot · B tackle · LT press · RT sprint · LB switch</div>
         </div>
-        <button id="music-toggle" class="toggle">Music: on</button>
+        <div class="toggles">
+          <button id="music-toggle" class="toggle">Music: on</button>
+          <button id="vibration-toggle" class="toggle hidden">Vibration: on</button>
+        </div>
         <p class="hint">Passes and tackles fill your <b>Rush</b> meter. When it's full, your next shot is a power shot.</p>
       </div>
     </div>

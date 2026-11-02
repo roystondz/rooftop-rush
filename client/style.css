@@ -1307,3 +1307,114 @@ html.touch,
   border: 1px solid rgba(255, 255, 255, 0.12);
   font-size: inherit;
 }
+
+/* --- Install as an app ------------------------------------------------------------- */
+
+.install-help {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.install-help b {
+  color: var(--text);
+}
+
+.toggles {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.panel .toggles button.toggle {
+  margin: 14px 0 0;
+}
+
+/* --- Quick chat ------------------------------------------------------------------- */
+
+#chat-btn {
+  right: 154px;
+  font-size: 16px;
+}
+
+.chat-pick {
+  pointer-events: auto;
+  position: absolute;
+  top: 62px;
+  right: 16px;
+  z-index: 25;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.chat-pick button {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(7, 11, 28, 0.9);
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.chat-pick button::before {
+  content: attr(data-key);
+  margin-right: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.touch .chat-pick button::before {
+  content: none; /* no number keys on a phone */
+}
+
+.chat-feed {
+  position: absolute;
+  top: 96px; /* below the scoreboard, which is wide on phones */
+  left: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  max-width: 34vw;
+}
+
+.chat-feed li {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(7, 11, 28, 0.75);
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity 0.6s ease;
+}
+
+.chat-feed li.fade {
+  opacity: 0;
+}
+
+.chat-feed b.team-0 {
+  color: var(--kit0, var(--team0));
+}
+
+.chat-feed b.team-1 {
+  color: var(--kit1, var(--team1));
+}
+
+@media (max-width: 560px) {
+  .chat-pick {
+    top: 120px;
+  }
+  .chat-feed {
+    top: 130px;
+    max-width: 50vw;
+  }
+}

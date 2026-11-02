@@ -18,6 +18,7 @@ export class Hud {
   private teamLabels = [$('name-0'), $('name-1')];
   private msgTimer = 0;
   private replay = $('replay');
+  private chatFeed = $('chat-feed');
   /** How to skip a replay on this device. */
   skipHint = 'Press any button to skip';
 
@@ -30,6 +31,8 @@ export class Hud {
     this.root.classList.remove('hidden');
     this.teamLabels.forEach((el, t) => el.classList.toggle('you', t === you));
     this.ping.classList.toggle('hidden', you === undefined);
+    $('chat-btn').classList.toggle('hidden', you === undefined); // quick chat is for online play
+    this.chatFeed.replaceChildren();
   }
 
   /** Network readout in the corner during online play. */
@@ -40,6 +43,19 @@ export class Hud {
   hide(): void {
     this.root.classList.add('hidden');
     this.showReplay(false);
+  }
+
+  /** A quick-chat line, e.g. "SAM: Nice!", in the sender's team colour. Fades after a few seconds. */
+  chat(name: string, team: 0 | 1, text: string): void {
+    const li = document.createElement('li');
+    const who = document.createElement('b');
+    who.className = `team-${team}`;
+    who.textContent = name;
+    li.append(who, `: ${text}`);
+    this.chatFeed.append(li);
+    while (this.chatFeed.children.length > 3) this.chatFeed.firstElementChild?.remove();
+    setTimeout(() => li.classList.add('fade'), 3500);
+    setTimeout(() => li.remove(), 4200);
   }
 
   /** Shows or hides the replay letterbox and badge. */

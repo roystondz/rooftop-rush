@@ -5,6 +5,7 @@ import { DEFAULT_TEAM_NAMES } from '../shared/names';
 import type { Hud } from './hud';
 import { DEFAULT_KITS, kitCss } from '../shared/kits';
 import { Crowd, type Reaction } from './crowd';
+import { BUZZ, type Haptics } from './haptics';
 import type { Renderer } from './renderer';
 
 export class Effects {
@@ -16,6 +17,10 @@ export class Effects {
   /** How to take a penalty, and how to save one, on this device. */
   penaltyHints = { take: 'aim with the arrows, hold J to shoot', save: 'A/D to move, L to dive' };
   onFullTime: (w: World) => void = () => {};
+  /** Phone vibration, if the device has it. */
+  haptics: Haptics | null = null;
+  /** The player you're controlling right now, so only your own shots and tackles buzz. */
+  controlled: () => number = () => -1;
   /** Every match event, as it happens (used to keep your stats). */
   onEvent: (w: World, e: MatchEvent) => void = () => {};
   private lastPhase: Phase | null = null;
@@ -91,9 +96,38 @@ export class Effects {
     }
   }
 
+  /** A short vibration for moments that involve you. */
+  private buzz(e: MatchEvent): void {
+    const h = this.haptics;
+    if (!h) return;
+    const me = this.controlled();
+    const mine = me >= 0 && (e.player === me || e.target === me);
+    switch (e.type) {
+      case 'shot':
+        if (mine) h.buzz(BUZZ.shot);
+        break;
+      case 'powerShot':
+        if (mine) h.buzz([...BUZZ.powerShot]);
+        break;
+      case 'tackle':
+        if (mine) h.buzz(BUZZ.tackle);
+        break;
+      case 'save':
+        if (mine) h.buzz(BUZZ.save);
+        break;
+      case 'post':
+        h.buzz(BUZZ.post);
+        break;
+      case 'goal':
+        h.buzz(e.team === this.myTeam ? [...BUZZ.goalFor] : BUZZ.goalAgainst);
+        break;
+    }
+  }
+
   handle(w: World, e: MatchEvent): void {
     this.onEvent(w, e);
     this.crowdEvent(w, e);
+    this.buzz(e);
     const ours = e.team === this.myTeam;
     switch (e.type) {
       case 'whistle':
