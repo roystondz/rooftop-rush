@@ -23,6 +23,7 @@ import type { Hud } from './hud';
 import type { InputManager } from './input';
 import type { Connection } from './net';
 import type { Renderer } from './renderer';
+import { Replay } from './replay';
 
 const PING_EVERY = 2;
 /** Events meaning someone else touched the ball, so our predicted kick should give way to the server. */
@@ -62,6 +63,7 @@ export class OnlineGame {
   private kickSoundPlayed = false;
   private ballOffset = { x: 0, y: 0, z: 0 };
   private handOverBall = false;
+  private replay = new Replay();
 
   /** `debug` shows a ghost where the server last saw your player, plus prediction numbers. */
   constructor(
@@ -73,6 +75,7 @@ export class OnlineGame {
     private debug: boolean,
     private on: OnlineCallbacks,
   ) {
+    this.replay.onGoalMoment = (w) => this.effects.replayGoal(w);
     conn.onMessage = (m) => this.receive(m);
     conn.onClose = () => {
       this.started = false;
@@ -96,6 +99,7 @@ export class OnlineGame {
     this.conn.close();
     this.started = false;
     this.hud.hide();
+    this.renderer.setReplay(null);
   }
 
   /** Lobby: move to the other team. */
@@ -123,6 +127,8 @@ export class OnlineGame {
       this.acc -= DT;
       const fi = this.input.read();
       Object.assign(fi.game, screenToPitch(fi.game, this.latest)); // controls follow the penalty camera
+      // Any action button skips the replay (just on this screen; the server keeps its own pause).
+      this.replay.press(fi.game.shoot || fi.game.pass || fi.game.tackle || !!fi.game.through || fi.switchPlayer);
       if (fi.switchPlayer) this.conn.send({ t: 'switch' });
       if (fi.press && Math.hypot(fi.game.moveX, fi.game.moveZ) < 0.2) {
         // Hold press: chase the ball from where we predict we are right now.
@@ -149,6 +155,18 @@ export class OnlineGame {
     this.predictor.decay(frameDt);
     this.drawPrediction(this.view);
     this.drawBall(this.view, frameDt);
+    this.replay.record(this.view, this.clock.renderTick * DT);
+    const replayed = this.replay.update(frameDt);
+    this.renderer.setReplay(replayed ? this.replay.goalSide : null);
+    this.hud.showReplay(!!replayed);
+    if (replayed) {
+      this.renderer.setSwitchHint(-1);
+      this.renderer.setOtherHumans([]);
+      this.renderer.render(replayed, null, 1, frameDt, -1);
+      this.hud.update(this.view, this.view.players[this.controlledId], frameDt);
+      this.updateNetReadout();
+      return;
+    }
     const humans = humansFromSeats(this.view, this.snaps[this.snaps.length - 1].controlled);
     this.renderer.setSwitchHint(defendingHint(this.view, humans, this.seat));
     // Rings under the players other people are controlling (teammates and opponents).
@@ -271,6 +289,8 @@ export class OnlineGame {
         this.lastInput = { ...NO_INPUT };
         this.kickSoundPlayed = false;
         this.ballOffset = { x: 0, y: 0, z: 0 };
+        this.replay.reset();
+        this.renderer.setReplay(null);
         this.started = true;
         this.effects.reset(m.team);
         this.renderer.setupPlayers(this.view);
@@ -296,6 +316,7 @@ export class OnlineGame {
             this.kick.stop();
             this.handOverBall = true;
           }
+          if (e.type === 'goal' && this.latest.mode === 'match') this.replay.goal(m.s.tick * DT);
           this.effects.handle(this.latest, e);
         }
         break;

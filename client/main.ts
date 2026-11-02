@@ -30,6 +30,7 @@ const touch = touchDevice ? new TouchControls() : null;
 input.touch = touch;
 if (touch) {
   effects.passHint = 'tap PASS';
+  hud.skipHint = 'Tap any button to skip';
   effects.penaltyHints = { take: 'aim with the stick, hold SHOOT', save: 'stick to move, DIVE' };
 }
 const game = new Game(renderer, hud, input, effects);

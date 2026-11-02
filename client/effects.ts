@@ -3,7 +3,7 @@ import type { MatchEvent, Phase, Team, World } from '../shared/types';
 import type { Sfx } from './audio';
 import { DEFAULT_TEAM_NAMES } from '../shared/names';
 import type { Hud } from './hud';
-import type { Renderer } from './renderer';
+import { TEAM_COLORS, type Renderer } from './renderer';
 
 export class Effects {
   myTeam: Team = 0;
@@ -34,6 +34,12 @@ export class Effects {
       this.hud.message('PASS TO START', `Turn to aim, then ${this.passHint}`, 1.8);
     }
     this.lastPhase = w.phase;
+  }
+
+  /** The replayed ball has just gone in: bulge the net and lift the crowd again. */
+  replayGoal(w: World): void {
+    this.renderer.pulseNet(w.ball.x);
+    this.sfx.crowdSwell(0.6);
   }
 
   handle(w: World, e: MatchEvent): void {
@@ -76,7 +82,10 @@ export class Effects {
         this.sfx.goal();
         this.renderer.addShake(0.9);
         this.renderer.goalBurst(team, w.ball.x);
-        this.hud.message(e.ownGoal ? 'OWN GOAL' : 'GOAL!', `${this.names[team]} ${w.score[0]} – ${w.score[1]}`, 2.4);
+        const color = `#${TEAM_COLORS[team].toString(16).padStart(6, '0')}`;
+        const sub = `${this.names[team]} · ${w.score[0]} – ${w.score[1]}`;
+        if (w.mode === 'match') this.hud.goal(e.ownGoal ? 'OWN GOAL' : 'GOAL!', sub, color);
+        else this.hud.message('GOAL!', sub, 2.4);
         break;
       }
       case 'rushReady':

@@ -1,4 +1,4 @@
-import { PLAYER, RUSH, SHOOTOUT } from '../shared/constants';
+import { PLAYER, REPLAY, RUSH, SHOOTOUT } from '../shared/constants';
 import type { Player, World } from '../shared/types';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -17,6 +17,9 @@ export class Hud {
   private pensShown = '';
   private teamLabels = [$('name-0'), $('name-1')];
   private msgTimer = 0;
+  private replay = $('replay');
+  /** How to skip a replay on this device. */
+  skipHint = 'Press any button to skip';
 
   /** `you` marks which team is yours in online play; leave it out for local games. */
   setTeamNames(names: readonly [string, string]): void {
@@ -36,9 +39,25 @@ export class Hud {
 
   hide(): void {
     this.root.classList.add('hidden');
+    this.showReplay(false);
+  }
+
+  /** Shows or hides the replay letterbox and badge. */
+  showReplay(on: boolean): void {
+    this.replay.classList.toggle('hidden', !on);
+    this.replay.querySelector('.replay-skip')!.textContent = this.skipHint;
+  }
+
+  /** The big goal banner, in the scoring team's colour. */
+  goal(text: string, sub: string, color: string): void {
+    this.message(text, sub, REPLAY.delay); // gone by the time the replay starts
+    this.msg.classList.add('goal');
+    this.msg.style.setProperty('--goal-color', color);
   }
 
   message(text: string, sub = '', seconds = 1.6): void {
+    this.msg.classList.remove('goal', 'show');
+    void this.msg.offsetWidth; // restart the pop-in animation
     this.msg.innerHTML = '';
     this.msg.append(text);
     if (sub) {

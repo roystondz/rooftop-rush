@@ -67,6 +67,8 @@ export class Renderer {
   private camX = 0;
   /** Penalty camera, eased between kicks so it glides from one end to the other. */
   private penCam: { pos: THREE.Vector3; look: THREE.Vector3 } | null = null;
+  /** Replay camera: low and close, following the ball. Null when showing live play. */
+  private replayCam: { side: 1 | -1; pos: THREE.Vector3; look: THREE.Vector3 } | null = null;
   private shake = 0;
   private time = 0;
   private tmp = new THREE.Vector3();
@@ -138,8 +140,20 @@ export class Renderer {
     this.shake = Math.min(1.2, this.shake + amount);
   }
 
-  goalBurst(team: 0 | 1, x: number): void {
+  /** Shows a replay with a TV-style camera; `side` is the end the goal went in. Null returns to live. */
+  setReplay(side: 1 | -1 | null): void {
+    if (side === null) this.replayCam = null;
+    else if (!this.replayCam) this.replayCam = { side, pos: new THREE.Vector3(), look: new THREE.Vector3() };
+    this.trailPoints.length = 0;
+  }
+
+  /** Makes the net at that end of the pitch bulge, as when the ball hits it. */
+  pulseNet(x: number): void {
     this.netPulse[x > 0 ? 1 : 0] = 1;
+  }
+
+  goalBurst(team: 0 | 1, x: number): void {
+    this.pulseNet(x);
     const pos = this.confetti.geometry.getAttribute('position') as THREE.BufferAttribute;
     const col = this.confetti.geometry.getAttribute('color') as THREE.BufferAttribute;
     const c = new THREE.Color(TEAM_COLORS[team]);
@@ -193,6 +207,13 @@ export class Renderer {
       // The scoring team jumps. During the goal phase the ball sits in the net it went into.
       const celebrating = w.phase === 'goal' && p.team === (w.ball.x > 0 ? 0 : 1);
       v.root.position.y = celebrating ? Math.abs(Math.sin(this.time * 7 + i)) * 0.6 : 0;
+      if (celebrating && w.mode === 'match') {
+        // Arms up; the scorer runs to the corner first and only jumps once they stop.
+        const wave = Math.sin(this.time * 9 + i) * 0.25;
+        v.armL.rotation.z = 2.7 + wave;
+        v.armR.rotation.z = 2.7 - wave;
+        if (run > 0.3) v.root.position.y = 0;
+      }
     });
 
     // Controlled-player marker
@@ -273,20 +294,21 @@ export class Renderer {
     moon.shadow.bias = -0.0005;
     this.scene.add(moon);
 
-    // Floodlights at the corners: visible lamps plus soft coloured fill.
+    // Floodlights at the corners: a dark housing with a glowing face that points at the pitch.
+    // Only the face glows, so the lamps nearest the camera (seen from behind) aren't white blocks.
+    const metal = new THREE.MeshStandardMaterial({ color: 0x2a2f45, metalness: 0.6, roughness: 0.4 });
+    const glow = new THREE.MeshBasicMaterial({ color: 0xfff1cc });
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
-        const pole = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.12, 0.15, 9, 8),
-          new THREE.MeshStandardMaterial({ color: 0x2a2f45, metalness: 0.6, roughness: 0.4 }),
-        );
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 9, 8), metal);
         pole.position.set(sx * (HALF_L + 3), 4.5, sz * (HALF_W + 3));
-        const lamp = new THREE.Mesh(
-          new THREE.BoxGeometry(1.4, 0.5, 0.8),
-          new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: 3 }),
-        );
+        const lamp = new THREE.Group();
+        const housing = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.5, 0.3), metal);
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.38), glow);
+        face.position.z = 0.16; // just in front of the housing, on the side facing the pitch
+        lamp.add(housing, face);
         lamp.position.set(sx * (HALF_L + 3), 9.2, sz * (HALF_W + 3));
-        lamp.lookAt(0, 0, 0);
+        lamp.lookAt(0, 0, 0); // a Group's +z faces the target, so the face points at the pitch
         this.scene.add(pole, lamp);
       }
     }
@@ -657,6 +679,25 @@ export class Renderer {
     this.shake = Math.max(0, this.shake - dt * 2.5);
     const sx = (Math.sin(this.time * 61) * 0.3 + Math.sin(this.time * 37) * 0.2) * this.shake;
     const sy = Math.sin(this.time * 53) * 0.3 * this.shake;
+
+    if (this.replayCam) {
+      // Replay: low on the near touchline (inside the cage, so the wall's rail isn't in the way),
+      // a little back from the scoring end, following the ball.
+      const rc = this.replayCam;
+      const z = Math.min(bz + (portrait ? 12 : 9), HALF_W - 0.8);
+      const pos = new THREE.Vector3(clamp(bx - rc.side * 7, -HALF_L, HALF_L), portrait ? 7 : 4.5, z);
+      const look = new THREE.Vector3(bx + rc.side * 1.5, 0.8, bz);
+      if (rc.pos.lengthSq() === 0) {
+        rc.pos.copy(pos);
+        rc.look.copy(look);
+      }
+      const k = 1 - Math.exp(-4 * dt);
+      rc.pos.lerp(pos, k);
+      rc.look.lerp(look, k);
+      this.camera.position.set(rc.pos.x + sx * 0.3, rc.pos.y + sy * 0.3, rc.pos.z);
+      this.camera.lookAt(rc.look);
+      return;
+    }
 
     const forward = penaltyCameraForward(w);
     if (forward !== null) {

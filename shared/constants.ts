@@ -85,7 +85,16 @@ export const MATCH = {
   duration: 180,
   kickoffDelay: 1.6,
   kickoffPassTime: 6, // seconds to make the kickoff pass before it's made for you
-  goalCelebration: 2.8,
+  goalCelebration: 6.4, // long enough for the celebration and the replay (see REPLAY)
+} as const;
+
+/** Instant replay after a goal. The goal pause (MATCH.goalCelebration) must cover delay + the replay. */
+export const REPLAY = {
+  delay: 1.5, // seconds of live celebration before the replay starts
+  before: 2.4, // replay starts this long before the ball went in…
+  after: 0.5, // …and ends this long after
+  slowFrom: 0.8, // the last moments before the goal play in slow motion
+  slowSpeed: 0.45,
 } as const;
 
 export const SHOOTOUT = {

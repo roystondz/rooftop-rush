@@ -21,6 +21,7 @@ import type { Effects } from './effects';
 import type { Hud } from './hud';
 import type { InputManager } from './input';
 import { Renderer, takeSnapshot, type Snapshot } from './renderer';
+import { Replay } from './replay';
 
 export class Game {
   world: World | null = null;
@@ -33,13 +34,16 @@ export class Game {
   private bots: Bot[] = [];
   private prev: Snapshot | null = null;
   private acc = 0;
+  private replay = new Replay();
 
   constructor(
     private renderer: Renderer,
     private hud: Hud,
     private input: InputManager,
     private effects: Effects,
-  ) {}
+  ) {
+    this.replay.onGoalMoment = (w) => this.effects.replayGoal(w);
+  }
 
   get controlledId(): number {
     return this.me.player;
@@ -60,6 +64,8 @@ export class Game {
     this.acc = 0;
     this.paused = false;
     this.switchTimer = new SwitchTimer();
+    this.replay.reset();
+    this.renderer.setReplay(null);
     this.effects.reset(this.humanTeam);
     this.renderer.setupPlayers(w);
     this.hud.show();
@@ -68,6 +74,7 @@ export class Game {
   stop(): void {
     this.world = null;
     this.hud.hide();
+    this.renderer.setReplay(null);
   }
 
   /** Called every animation frame by main.ts. */
@@ -81,6 +88,15 @@ export class Game {
         this.acc -= DT;
       }
     }
+    const replayed = this.paused ? null : this.replay.update(frameDt);
+    this.renderer.setReplay(replayed ? this.replay.goalSide : null);
+    this.hud.showReplay(!!replayed);
+    if (replayed) {
+      this.renderer.setSwitchHint(-1);
+      this.renderer.render(replayed, null, 1, frameDt, -1);
+      this.hud.update(w, w.players[this.controlledId], frameDt);
+      return;
+    }
     const alpha = this.paused ? 1 : this.acc / DT;
     const owner = w.ball.owner >= 0 ? w.players[w.ball.owner] : undefined;
     const defending = w.phase === 'playing' && owner?.team !== this.humanTeam;
@@ -92,6 +108,11 @@ export class Game {
   private tick(w: World): void {
     const human = this.input.read();
     Object.assign(human.game, screenToPitch(human.game, w)); // controls follow the penalty camera
+    // Any action button skips a replay, and locally that also cuts the wait for the kickoff.
+    const g = human.game;
+    const wasReplaying = this.replay.playing;
+    this.replay.press(g.shoot || g.pass || g.tackle || !!g.through || human.switchPlayer);
+    if (wasReplaying && !this.replay.playing && w.phase === 'goal') w.phaseTimer = Math.min(w.phaseTimer, 0.3);
     if (human.switchPlayer) this.handOver(switchToNearest(w, [this.me], this.me, this.switchTimer));
 
     const me = w.players[this.controlledId];
@@ -105,6 +126,8 @@ export class Game {
     );
     this.prev = takeSnapshot(w, this.prev ?? undefined);
     step(w, inputs);
+    this.replay.record(w, w.tick * DT);
+    if (w.mode === 'match' && w.events.some((e) => e.type === 'goal')) this.replay.goal(w.tick * DT);
 
     for (const c of autoSwitch(w, [this.me], w.events, this.switchTimer)) this.handOver(c);
     this.handOver(autoSwitchDefending(w, [this.me], this.me, this.switchTimer));

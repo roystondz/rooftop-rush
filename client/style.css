@@ -167,6 +167,87 @@ body {
   transform: scale(1);
 }
 
+/* Goal banner: bigger, in the scoring team's colour, with a short punch-in. */
+.message.goal {
+  font-size: clamp(56px, 14vw, 150px);
+  color: var(--goal-color, #fff);
+  text-shadow:
+    0 0 40px var(--goal-color, rgba(250, 204, 21, 0.6)),
+    0 6px 0 rgba(0, 0, 0, 0.35);
+}
+
+.message.goal.show {
+  animation: goal-punch 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.message.goal small {
+  color: #fff;
+  font-size: 0.22em;
+}
+
+@keyframes goal-punch {
+  from {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Instant replay: letterbox bars, a REPLAY badge and a skip hint. */
+.replay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.replay::before,
+.replay::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 9vh;
+  background: #000;
+}
+
+.replay::before {
+  top: 0;
+}
+
+.replay::after {
+  bottom: 0;
+}
+
+.replay-badge {
+  position: absolute;
+  top: max(calc(9vh + 14px), 100px); /* below the scoreboard */
+  left: 16px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.12em;
+  animation: replay-blink 1.2s steps(2, start) infinite;
+}
+
+.replay-skip {
+  position: absolute;
+  bottom: calc(9vh + 14px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+@keyframes replay-blink {
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .message small {
   display: block;
   font-size: 0.28em;

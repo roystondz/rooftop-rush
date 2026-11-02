@@ -97,6 +97,7 @@ client/            Browser only.
   online.ts        Online match: send inputs, receive snapshots, blend between them.
   net.ts           WebSocket connection, server address, and the ?lag= simulator.
   effects.ts       Match events → sounds, screen shake, messages.
+  replay.ts        Instant replay: keeps the last few seconds and replays goals in slow motion.
   renderer.ts      Three.js drawing: arena, city, players, ball, camera, effects.
   input.ts         Keyboard, gamepad and touch → Input.
   touch.ts         On-screen joystick and buttons for phones (multi-touch).
@@ -168,4 +169,5 @@ Then open http://localhost:3000.
 4. ~~3v3 online: lobby, teams, host start, join mid-match, bots fill empty spots~~ ✅
 5. ~~Touch controls for phones and tablets~~ ✅
 6. ~~Deploy setup: one Render service for page and server~~ ✅
-7. Accounts and leaderboard with Supabase.
+7. ~~Goal celebrations and instant replays (local and online)~~ ✅
+8. Accounts and leaderboard with Supabase.

@@ -72,11 +72,7 @@ export function step(w: World, inputs: ReadonlyArray<Input | undefined>): void {
       return;
     case 'goal':
       w.phaseTimer -= DT;
-      for (const p of w.players) {
-        p.vx *= 0.9;
-        p.vz *= 0.9;
-        movePlayer(p);
-      }
+      celebrate(w);
       updateBall(w);
       if (w.phaseTimer <= 0) {
         if (w.goldenGoal || w.time <= 0) endMatch(w);
@@ -751,6 +747,38 @@ function checkGoal(w: World): void {
     player: scorer,
     ownGoal: scorer >= 0 && w.players[scorer].team !== team,
   });
+}
+
+/**
+ * After a goal the scorer runs off toward the nearest corner of the end they scored at, and
+ * teammates jog over to join them. Everyone else slows to a stop. (After an own goal, nobody runs.)
+ */
+function celebrate(w: World): void {
+  const team: Team = w.kickoffTeam === 0 ? 1 : 0; // the team that conceded kicks off
+  const scorer = w.players[w.lastScorer];
+  const runner = scorer && scorer.team === team ? scorer : undefined;
+  const steer = (p: Player, tx: number, tz: number, speed: number, stopAt: number) => {
+    const dx = tx - p.x;
+    const dz = tz - p.z;
+    const d = Math.hypot(dx, dz);
+    const v = d > stopAt ? Math.min(speed, (d - stopAt) * 3) : 0;
+    p.vx = lerp(p.vx, d > 0 ? (dx / d) * v : 0, 0.12);
+    p.vz = lerp(p.vz, d > 0 ? (dz / d) * v : 0, 0.12);
+    if (Math.hypot(p.vx, p.vz) > 0.5) p.facing = Math.atan2(p.vz, p.vx);
+  };
+  for (const p of w.players) {
+    if (runner && p === runner) {
+      const end = attackDir(team) * (HALF_L - 2.5);
+      steer(p, end, (p.z >= 0 ? 1 : -1) * (HALF_W - 2.5), PLAYER.speed, 0.3);
+    } else if (runner && p.team === team && p.role !== 'keeper') {
+      steer(p, runner.x, runner.z, PLAYER.speed * 0.8, 1.6);
+    } else {
+      p.vx *= 0.9;
+      p.vz *= 0.9;
+    }
+    movePlayer(p);
+  }
+  separatePlayers(w);
 }
 
 /** Lets players pick up a loose ball, and makes the ball bounce off players who can't. */
