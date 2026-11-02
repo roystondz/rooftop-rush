@@ -32,7 +32,16 @@ export class Bot {
   private lastPass = false;
   private lastTackle = false;
   /** Penalty plans, decided once per kick. */
-  private pen: { aimZ: number; power: number; wait: number; guess: number; reacted: boolean } | null = null;
+  private pen: {
+    aimZ: number;
+    power: number;
+    wait: number;
+    guess: number;
+    reacted: boolean;
+    swaySpeed: number; // keeper: how fast they shuffle side to side before the kick
+    swayPhase: number;
+    swaySize: number;
+  } | null = null;
   private readonly rng: () => number;
 
   constructor(
@@ -96,6 +105,9 @@ export class Bot {
         // How likely the keeper is to commit to a side as the kick is struck (instead of reacting).
         guess: this.rng() < 0.5 ? (this.rng() < 0.5 ? -1 : 1) : 0,
         reacted: false,
+        swaySpeed: 1.6 + this.rng() * 1.6,
+        swayPhase: this.rng() * Math.PI * 2,
+        swaySize: 0.5 + this.rng() * 0.6,
       };
     }
     const plan = this.pen;
@@ -124,7 +136,16 @@ export class Bot {
 
     if (p.id === duel.keeper.id) {
       if (!so.kicked) {
-        out.moveZ = clamp(-p.z, -1, 1) * 0.6; // stay central
+        // Stay alive on the line: shuffle side to side, and lean a little toward where the taker
+        // is aiming (sharper keepers read it better). Never the same spot twice.
+        const sway = Math.sin(so.kickTimer * plan.swaySpeed + plan.swayPhase) * plan.swaySize;
+        // Where the taker's aim line crosses our goal line (works from either end).
+        const fx = Math.cos(duel.taker.facing);
+        const along = Math.abs(fx) > 0.2 ? (p.x - duel.taker.x) / fx : 0;
+        const aimedAt = duel.taker.z + Math.sin(duel.taker.facing) * along;
+        const read = clamp(aimedAt, -2.5, 2.5) * this.skill.keeperFocus * 0.12;
+        const target = clamp(sway + read, -1.8, 1.8);
+        out.moveZ = clamp((target - p.z) * 1.5, -1, 1) * 0.8;
         return;
       }
       if (plan.reacted) return;

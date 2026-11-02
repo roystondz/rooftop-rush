@@ -298,3 +298,50 @@ describe('penalty bots are not predictable', () => {
     expect(shotSides(42)).toBe(shotSides(42));
   });
 });
+
+describe('the bot keeper before the kick', () => {
+  /** Runs the run-up with the taker aiming at `aim` (radians off straight) and returns the keeper's z each tick. */
+  function runUp(takerTeam: 0 | 1, aim: number, seed = 3): number[] {
+    const w = shootout();
+    if (takerTeam === 1) {
+      w.shootout!.taker = 1;
+      // Rebuild the kick for team 1 by running the setup again.
+      w.shootout!.kicks[0].push(1);
+      w.phase = 'goal';
+      w.phaseTimer = 0;
+      w.winner = -1;
+      step(w, []); // → setupPenalty for team 1
+    }
+    toWhistleIfNeeded(w);
+    const { taker, keeper } = penaltyDuel(w)!;
+    const bot = new Bot(keeper.id, BOT_SKILLS.hard, seed);
+    const straight = takerTeam === 0 ? 0 : Math.PI;
+    const zs: number[] = [];
+    for (let i = 0; i < 90; i++) {
+      taker.facing = straight + (takerTeam === 0 ? aim : -aim); // "aim" as the taker sees it (right = +)
+      const inputs: Input[] = [];
+      inputs[keeper.id] = bot.think(w);
+      step(w, inputs);
+      zs.push(keeper.z);
+    }
+    return zs;
+  }
+
+  it('moves around instead of standing frozen in the middle', () => {
+    const zs = runUp(0, 0);
+    const spread = Math.max(...zs) - Math.min(...zs);
+    expect(spread).toBeGreaterThan(0.4);
+  });
+
+  it('leans toward the side the taker is aiming, from either end', () => {
+    for (const team of [0, 1] as const) {
+      const avg = (zs: number[]) => zs.reduce((a, b) => a + b, 0) / zs.length;
+      // Same keeper rhythm (seed), opposite aims: the "aiming right" average should be further right.
+      const right = avg(runUp(team, 0.5));
+      const left = avg(runUp(team, -0.5));
+      // "Right" as the taker sees it is +z for team 0 and -z for team 1.
+      const sign = team === 0 ? 1 : -1;
+      expect((right - left) * sign).toBeGreaterThan(0.2);
+    }
+  });
+});
