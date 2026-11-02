@@ -50,7 +50,9 @@ export class Game {
     const skill = BOT_SKILLS[difficulty];
     for (const p of w.players) if (p.team !== this.humanTeam) p.speedScale = skill.speedScale;
     // Your teammates always play at normal level; the difficulty only changes the opponents.
-    this.bots = w.players.map((p) => new Bot(p.id, p.team === this.humanTeam ? BOT_SKILLS.normal : skill));
+    // A fresh seed each match, so bots don't make the same choices (e.g. penalty sides) every game.
+    const seed = Math.floor(Math.random() * 1e9);
+    this.bots = w.players.map((p) => new Bot(p.id, p.team === this.humanTeam ? BOT_SKILLS.normal : skill, seed));
     this.world = w;
     this.me = { seat: 0, team: this.humanTeam, player: -1 };
     assignStartingPlayers(w, [this.me]);

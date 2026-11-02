@@ -271,3 +271,30 @@ function expectMove(m: { moveX: number; moveZ: number }, x: number, z: number): 
 function toWhistleIfNeeded(w: World): void {
   for (let i = 0; i < 200 && w.phase !== 'playing'; i++) step(w, []);
 }
+
+describe('penalty bots are not predictable', () => {
+  /** The side of each shot in a bot-vs-bot shootout, as the taker sees it: "L", "R" or "M". */
+  function shotSides(seed: number): string {
+    const w = shootout();
+    const bots = w.players.map((p) => new Bot(p.id, BOT_SKILLS.normal, seed));
+    let sides = '';
+    for (let t = 0; t < 60 * 60 * 5 && w.phase !== 'fulltime'; t++) {
+      const dir = w.shootout!.taker === 0 ? 1 : -1;
+      step(w, bots.map((b) => b.think(w)));
+      if (w.events.some((e) => e.type === 'shot')) {
+        const v = w.ball.vz * dir;
+        sides += v > 1 ? 'R' : v < -1 ? 'L' : 'M';
+      }
+    }
+    return sides;
+  }
+
+  it('plays differently with a different seed (each match gets a new one)', () => {
+    const games = new Set([1, 2, 3, 4, 5, 6].map((seed) => shotSides(seed * 7777).slice(0, 6)));
+    expect(games.size).toBeGreaterThan(3);
+  });
+
+  it('still plays exactly the same for the same seed (the simulation stays repeatable)', () => {
+    expect(shotSides(42)).toBe(shotSides(42));
+  });
+});

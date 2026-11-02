@@ -265,7 +265,9 @@ export class Room {
     this.cancelTimers();
     const w = createWorld({ mode: this.mode });
     this.world = w;
-    this.bots = w.players.map((p) => new Bot(p.id, BOT_SKILLS.normal, Date.now() % 100000));
+    // A fresh random seed each match, so bots don't repeat the same choices game after game.
+    const seed = Math.floor(Math.random() * 1e9);
+    this.bots = w.players.map((p) => new Bot(p.id, BOT_SKILLS.normal, seed));
     this.names = this.lobbyNames();
     this.humans = this.seats
       .filter((s): s is Seat => s !== null)
