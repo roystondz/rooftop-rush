@@ -61,6 +61,7 @@ const screens = ['menu', 'online', 'lobby', 'pause', 'fulltime', 'stats'] as con
 type Screen = (typeof screens)[number];
 function show(screen: Screen | null): void {
   for (const s of screens) $(s).classList.toggle('hidden', s !== screen);
+  if (screen) $(screen).scrollTop = 0; // each screen opens at its top
 }
 
 function setStatus(text: string, isError = false): void {

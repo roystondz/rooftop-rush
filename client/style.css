@@ -329,12 +329,22 @@ body {
   position: fixed;
   inset: 0;
   display: grid;
-  place-items: center;
   padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: radial-gradient(ellipse at center, rgba(7, 11, 28, 0.55), rgba(7, 11, 28, 0.9));
+  /* Menus scroll when they don't fit (phones in landscape). The page itself never scrolls:
+     touch-action is switched off for the game, so allow vertical swipes here again. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .panel {
+  /* Centred when there's room; when the panel is taller than the screen the auto margins
+     shrink to zero, so it starts at the top and scrolls instead of being cut off at both ends. */
+  margin: auto;
   width: min(460px, 100%);
   padding: 28px;
   border-radius: 20px;
@@ -787,11 +797,40 @@ html.touch,
     transform: scale(0.85);
     transform-origin: bottom right;
   }
+}
+
+/* Short screens (phones in landscape): tighter menus, so less of them needs scrolling. */
+@media (max-height: 520px) {
+  .overlay {
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
   .panel {
-    padding: 18px;
+    padding: 16px 20px;
+    border-radius: 16px;
   }
   h1 {
-    font-size: 32px;
+    font-size: 30px;
+  }
+  h2 {
+    margin-bottom: 10px;
+    font-size: 24px;
+  }
+  .tag {
+    margin: 2px 0 12px;
+  }
+  .panel button {
+    margin-top: 8px;
+    padding: 9px;
+  }
+  .panel button.primary {
+    font-size: 16px;
+  }
+  .touch-help,
+  .controls {
+    margin-top: 14px;
+    font-size: 12px;
+    gap: 5px;
   }
 }
 
@@ -1072,12 +1111,6 @@ html.touch,
 
 
 /* --- Your stats ------------------------------------------------------------ */
-
-.stats-panel {
-  max-height: calc(100vh - 32px);
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-}
 
 .stats-panel .tag {
   margin-bottom: 14px;
