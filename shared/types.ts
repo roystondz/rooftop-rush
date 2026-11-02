@@ -16,6 +16,8 @@ export interface Input {
   tackle: boolean;
   /** Skill move with the ball: a sidestep, or a drag-back when pulling the stick backwards. */
   skill?: boolean;
+  /** Held with pass, through or shoot: a lob pass, a lofted through ball, or a chip shot. */
+  lob?: boolean;
 }
 
 export const NO_INPUT: Readonly<Input> = Object.freeze({
@@ -59,8 +61,8 @@ export interface Player {
 }
 
 export type KickKind = 'none' | 'shot' | 'pass';
-/** How a ball in the air was struck. */
-export type KickStyle = 'header' | 'volley';
+/** How the ball was struck, when it wasn't a plain kick along the ground. */
+export type KickStyle = 'header' | 'volley' | 'chip' | 'lob';
 
 export interface Ball {
   x: number;

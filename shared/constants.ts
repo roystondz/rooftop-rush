@@ -46,6 +46,8 @@ export const PLAYER = {
   reach: 0.95, // how close the ball must be to control it
   firstTimeReach: 1.3, // how close a loose ball must be to hit it first time
   maxTrapSpeed: 18, // faster balls bounce off outfield players
+  controlHeight: 1.1, // outfield players control a ball below this…
+  chestHeight: 1.4, // …or, if it's dropping (a lob), below this
   keeperReach: 1.6,
   keeperReachHeight: 2.3,
   kickCooldown: 0.3,
@@ -65,6 +67,11 @@ export const SHOT = {
   maxCurl: 3.2,
   powerMultiplier: 1.35,
   powerLift: 1.6,
+  // Chip shot (lob modifier): high and soft, over a keeper who's off their line. It peaks at about
+  // 3 m, so the charge decides where it comes down: from a soft Panenka to about 16 metres.
+  chipLift: 10.5,
+  chipMinSpeed: 4,
+  chipMaxSpeed: 17,
 } as const;
 
 /** Skill moves, headers, volleys and crosses. */
@@ -99,8 +106,12 @@ export const PASS = {
   maxSpeed: 21,
   speedPerMeter: 1.2,
   lift: 0.8,
-  loftDistance: 15, // passes longer than this are chipped
-  loftLift: 6,
+  loftDistance: 15, // bots lob passes longer than this
+  // Lob pass (lob modifier): up over the defenders (it peaks at about 2.6 m) and down near the
+  // teammate (slow enough to control up to about 15 m). Normal passes always stay on the ground.
+  lobLift: 10,
+  lobMinSpeed: 6,
+  lobMaxSpeed: 22,
   lead: 0.35, // seconds of the receiver's run to aim ahead
   throughLead: 0.9, // through balls aim much further ahead…
   throughSpace: 3.5, // …and this many metres further toward goal

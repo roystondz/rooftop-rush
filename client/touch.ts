@@ -5,6 +5,10 @@
 import { knobOffset, readStick, SPRINT_PUSH } from './joystick';
 
 const STICK_RADIUS = 56; // pixels
+/** Swiping up this far on SHOOT, PASS or THROUGH makes it a chip, a lob, or a lofted through ball. */
+const LOB_SWIPE = 28; // pixels
+/** Buttons that can be swiped up for the lofted version. */
+const LOBBABLE = new Set<string>(['shoot', 'pass', 'through']);
 
 export type Action = 'shoot' | 'pass' | 'through' | 'tackle' | 'switch' | 'press' | 'sprint' | 'skill';
 type Slot = 'main' | 'second' | 'third' | 'fourth';
@@ -19,9 +23,9 @@ interface ButtonJob {
 /** What each button does in each situation. A missing slot is hidden. */
 const LAYOUTS: Record<TouchMode, Partial<Record<Slot, ButtonJob>>> = {
   attack: {
-    main: { action: 'shoot', label: 'SHOOT', hint: 'hold' },
-    second: { action: 'pass', label: 'PASS' },
-    third: { action: 'through', label: 'THROUGH' },
+    main: { action: 'shoot', label: 'SHOOT', hint: 'hold · swipe ↑ chip' },
+    second: { action: 'pass', label: 'PASS', hint: 'swipe ↑ lob' },
+    third: { action: 'through', label: 'THROUGH', hint: 'swipe ↑ lob' },
     // Sprinting is also pushing the stick to its edge, so this button can be the skill move.
     fourth: { action: 'skill', label: 'SKILL', hint: 'pull back = turn' },
   },
@@ -50,6 +54,8 @@ export interface TouchState {
   through: boolean;
   tackle: boolean;
   skill: boolean;
+  /** A button was swiped up: lob pass, lofted through ball, or chip shot. */
+  lob: boolean;
   switchPlayer: boolean;
 }
 
@@ -65,7 +71,9 @@ export class TouchControls {
   private held = new Set<Action>();
   private tapped = new Set<Action>();
   /** Which action each finger pressed, decided when it touched down (so a mode change mid-press is safe). */
-  private fingers = new Map<number, { action: Action; slot: Slot }>();
+  private fingers = new Map<number, { action: Action; slot: Slot; startY: number; lob: boolean }>();
+  /** A swiped pass or shot was let go since the last read: report lob with it. */
+  private lobTap = false;
 
   constructor() {
     this.root = document.getElementById('touch')!;
@@ -86,16 +94,29 @@ export class TouchControls {
         const job = LAYOUTS[this.mode][slot];
         if (!job) return;
         capture(el, e.pointerId);
-        this.fingers.set(e.pointerId, { action: job.action, slot });
+        this.fingers.set(e.pointerId, { action: job.action, slot, startY: e.clientY, lob: false });
         this.held.add(job.action);
-        this.tapped.add(job.action);
+        // Pass and through ball go when you let go, so a swipe up can turn them into lobs first.
+        if (job.action !== 'pass' && job.action !== 'through') this.tapped.add(job.action);
         el.classList.add('down');
         navigator.vibrate?.(8);
+      });
+      el.addEventListener('pointermove', (e) => {
+        const finger = this.fingers.get(e.pointerId);
+        if (!finger || finger.lob || !LOBBABLE.has(finger.action)) return;
+        if (finger.startY - e.clientY > LOB_SWIPE) {
+          finger.lob = true;
+          el.classList.add('lob');
+          navigator.vibrate?.(6);
+        }
       });
       const release = (e: PointerEvent) => {
         const finger = this.fingers.get(e.pointerId);
         if (!finger) return;
         this.fingers.delete(e.pointerId);
+        if (finger.action === 'pass' || finger.action === 'through') this.tapped.add(finger.action);
+        if (finger.lob) this.lobTap = true;
+        el.classList.remove('lob');
         const stillHeld = [...this.fingers.values()];
         if (!stillHeld.some((f) => f.action === finger.action)) this.held.delete(finger.action);
         if (!stillHeld.some((f) => f.slot === finger.slot)) el.classList.remove('down');
@@ -146,9 +167,11 @@ export class TouchControls {
       through: this.tapped.has('through'),
       tackle: this.tapped.has('tackle'),
       skill: this.tapped.has('skill'),
+      lob: this.lobTap || [...this.fingers.values()].some((f) => f.lob),
       switchPlayer: this.tapped.has('switch'),
     };
     this.tapped.clear();
+    this.lobTap = false;
     return state;
   }
 

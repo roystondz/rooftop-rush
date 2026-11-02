@@ -20,6 +20,7 @@ const KEYS = {
   press: ['KeyE'],
   tackle: ['KeyL'],
   skill: ['KeyO'],
+  lob: ['KeyU'], // hold with pass, through or shoot
   switchPlayer: ['KeyQ'],
 } as const;
 
@@ -63,6 +64,7 @@ export class InputManager {
     let press = held('press');
     let tackle = tapped('tackle');
     let skill = tapped('skill');
+    let lob = held('lob') || tapped('lob');
     let switchPlayer = tapped('switchPlayer');
 
     const pad = firstGamepad();
@@ -82,6 +84,7 @@ export class InputManager {
       press ||= btn(6);
       tackle ||= this.padEdge(1, btn(1));
       switchPlayer ||= this.padEdge(4, btn(4));
+      lob ||= btn(4); // LB also switches player, but only when you don't have the ball
     }
 
     if (this.touch) {
@@ -97,11 +100,12 @@ export class InputManager {
       press ||= t.press;
       tackle ||= t.tackle;
       skill ||= t.skill;
+      lob ||= t.lob;
       switchPlayer ||= t.switchPlayer;
     }
 
     this.pressed.clear();
-    return { game: { moveX, moveZ, sprint, shoot, pass, tackle, through, skill }, switchPlayer, press };
+    return { game: { moveX, moveZ, sprint, shoot, pass, tackle, through, skill, lob }, switchPlayer, press };
   }
 
   private padPrev = new Map<number, boolean>();

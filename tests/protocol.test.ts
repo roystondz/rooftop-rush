@@ -4,7 +4,7 @@ import { createWorld } from '../shared/sim';
 
 describe('inputs', () => {
   it('survive packing and unpacking', () => {
-    const input = { moveX: 0.707, moveZ: -1, sprint: true, shoot: false, pass: true, tackle: false, through: true, skill: true };
+    const input = { moveX: 0.707, moveZ: -1, sprint: true, shoot: false, pass: true, tackle: false, through: true, skill: true, lob: true };
     expect(unpackInput(packInput(input))).toEqual({ ...input, moveX: 0.71 });
   });
 
@@ -28,7 +28,7 @@ describe('parseClientMessage', () => {
       '{"t":"join","code":"AB"}',
       '{"t":"join","code":"ABCD; DROP"}',
       '{"t":"input","seq":1,"i":[0,0]}',
-      '{"t":"input","seq":1,"i":[0,0,99]}',
+      '{"t":"input","seq":1,"i":[0,0,128]}',
       '{"t":"input","seq":1,"i":[0,0,1.5]}',
       '{"t":"input","seq":"1","i":[0,0,0]}',
       '{"t":"input","seq":1,"i":["a",0,0]}',

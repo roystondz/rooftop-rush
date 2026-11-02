@@ -357,6 +357,8 @@ export class Room {
           tackle: next.input.tackle || skipped.tackle,
           through: next.input.through || skipped.through,
           skill: next.input.skill || skipped.skill,
+          // A skipped pass or shot keeps its lob, so it isn't played along the ground instead.
+          lob: next.input.lob || (skipped.lob && (skipped.pass || !!skipped.through || skipped.shoot)),
         };
       }
       if (next) {

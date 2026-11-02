@@ -144,6 +144,7 @@ export class Effects {
         break;
       case 'shot':
         if (e.style === 'header') this.sfx.header();
+        else if (e.style === 'chip') this.sfx.pass(); // a soft scoop, not a strike
         else this.sfx.kick(e.strength ?? 0.5);
         this.renderer.addShake(0.15 * (e.strength ?? 0.5));
         break;
@@ -183,7 +184,8 @@ export class Effects {
         this.renderer.goalBurst(team, w.ball.x);
         const color = kitCss(this.kits[team]);
         const sub = `${this.names[team]} · ${w.score[0]} – ${w.score[1]}`;
-        const title = e.ownGoal ? 'OWN GOAL' : e.style === 'header' ? 'HEADER!' : e.style === 'volley' ? 'VOLLEY!' : 'GOAL!';
+        const titles = { header: 'HEADER!', volley: 'VOLLEY!', chip: 'CHIP!', lob: 'GOAL!' } as const;
+        const title = e.ownGoal ? 'OWN GOAL' : e.style ? titles[e.style] : 'GOAL!';
         if (w.mode === 'match') this.hud.goal(title, sub, color);
         else this.hud.message('GOAL!', sub, 2.4);
         break;

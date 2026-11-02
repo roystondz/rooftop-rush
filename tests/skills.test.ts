@@ -161,7 +161,7 @@ describe('crosses', () => {
     Object.assign(w.players[0], { x: HALF_L - 8, z: -9, facing: 0 });
     Object.assign(w.ball, { x: HALF_L - 7.1, z: -9, owner: 0 });
     Object.assign(w.players[1], { x: HALF_L - 3, z: 0 });
-    tick(w, [{ ...idle, pass: true }]);
+    tick(w, [{ ...idle, pass: true, lob: true }]);
     expect(w.ball.vy).toBeCloseTo(SKILL.crossLift - BALL.gravity * DT); // one tick of gravity already
     expect(w.ball.lastKick.target).toBe(1);
     // It comes down at about head height near the teammate.
@@ -173,6 +173,15 @@ describe('crosses', () => {
       }
     }
     expect(closest).toBeLessThan(2);
+  });
+
+  it('a normal pass from out wide is a low cut-back, not a cross', () => {
+    const w = openPlay();
+    Object.assign(w.players[0], { x: HALF_L - 8, z: -9, facing: 0 });
+    Object.assign(w.ball, { x: HALF_L - 7.1, z: -9, owner: 0 });
+    Object.assign(w.players[1], { x: HALF_L - 3, z: 0 });
+    tick(w, [{ ...idle, pass: true }]);
+    expect(w.ball.vy).toBeLessThan(1);
   });
 
   it('an ordinary pass in midfield stays low', () => {

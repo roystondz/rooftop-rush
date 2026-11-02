@@ -299,8 +299,8 @@ function updatePlayer(w: World, p: Player, inp: Input): void {
   if (hasBall && w.kickoffPending) {
     // Taking the kickoff: stand still, turn to aim, and pass. No dribbling or shooting.
     holdForKickoff(p, inp);
-    if (inp.pass && !p.prevPass) pass(w, p);
-    else if (inp.through && !p.prevThrough) pass(w, p, true);
+    if (inp.pass && !p.prevPass) pass(w, p, false, !!inp.lob);
+    else if (inp.through && !p.prevThrough) pass(w, p, true, !!inp.lob);
     rememberButtons(p, inp);
     return;
   }
@@ -329,7 +329,7 @@ function updatePlayer(w: World, p: Player, inp: Input): void {
     if (hasBall || canHitFirstTime(w, p)) {
       // Sideways input relative to facing becomes curl.
       const lateral = -mx * Math.sin(p.facing) + mz * Math.cos(p.facing);
-      shoot(w, p, lateral);
+      shoot(w, p, lateral, !!inp.lob);
     }
     p.charging = false;
     p.charge = 0;
@@ -338,7 +338,7 @@ function updatePlayer(w: World, p: Player, inp: Input): void {
   const passPressed = inp.pass && !p.prevPass;
   const throughPressed = !!inp.through && !p.prevThrough;
   if ((passPressed || throughPressed) && !p.charging && (w.ball.owner === p.id || canHitFirstTime(w, p))) {
-    pass(w, p, throughPressed && !passPressed);
+    pass(w, p, throughPressed && !passPressed, !!inp.lob);
   }
 
   if (inp.tackle && !p.prevTackle && w.ball.owner !== p.id && p.tackleCooldown <= 0) {
@@ -499,8 +499,16 @@ function kickBall(
   p.kickCooldown = PLAYER.kickCooldown;
 }
 
-function shoot(w: World, p: Player, lateral: number): void {
+function shoot(w: World, p: Player, lateral: number, chip = false): void {
   const c = clamp(p.charge / PLAYER.maxCharge, 0, 1);
+  if (chip) {
+    // High and soft; the charge decides how far. No Rush power on a chip.
+    const speed = lerp(SHOT.chipMinSpeed, SHOT.chipMaxSpeed, c);
+    const spin = clamp(lateral, -1, 1) * SHOT.maxCurl * 0.4;
+    kickBall(w, p, 'shot', Math.cos(p.facing) * speed, SHOT.chipLift, Math.sin(p.facing) * speed, spin, -1, 'chip');
+    emit(w, { type: 'shot', player: p.id, team: p.team, strength: c * 0.5, style: 'chip' });
+    return;
+  }
   const power = w.rush[p.team] >= RUSH.max;
   // Striking a ball in the air (not at your feet) is a volley: flatter and a bit quicker.
   const volley = w.ball.owner !== p.id && w.ball.y > SKILL.volleyMinHeight;
@@ -583,14 +591,19 @@ function skillMove(w: World, p: Player, mx: number, mz: number): void {
   emit(w, { type: 'skill', player: p.id, team: p.team });
 }
 
-/** `through`: play it into the space ahead of the teammate, for them to run onto. */
-function pass(w: World, p: Player, through = false): void {
+/**
+ * `through`: play it into the space ahead of the teammate, for them to run onto.
+ * `lob`: in the air over the defenders instead of along the ground (from out wide into the box,
+ * that's a cross).
+ */
+function pass(w: World, p: Player, through = false, lob = false): void {
   w.kickoffPending = false;
   const choice = bestPassTarget(w, p, 1.5);
   if (!choice) {
-    // Nobody to pass to: knock it forward.
-    kickBall(w, p, 'pass', Math.cos(p.facing) * 13, PASS.lift, Math.sin(p.facing) * 13, 0);
-    emit(w, { type: 'pass', player: p.id, team: p.team, target: -1 });
+    // Nobody to pass to: knock it forward (or hoof it, with lob).
+    const s = lob ? 14 : 13;
+    kickBall(w, p, 'pass', Math.cos(p.facing) * s, lob ? PASS.lobLift : PASS.lift, Math.sin(p.facing) * s, 0, -1, lob ? 'lob' : undefined);
+    emit(w, { type: 'pass', player: p.id, team: p.team, target: -1, ...(lob && { style: 'lob' as const }) });
     return;
   }
   const mate = choice.player;
@@ -604,7 +617,7 @@ function pass(w: World, p: Player, through = false): void {
   const dx = tx - p.x;
   const dz = tz - p.z;
   const dist = Math.max(0.01, Math.hypot(dx, dz));
-  if (isCross(p, mate, dist)) {
+  if (lob && isCross(p, mate, dist)) {
     // A cross: lofted from out wide to drop at head height on a teammate in the box.
     const lead = SKILL.crossFlight;
     const cx = clamp(mate.x + mate.vx * lead, -HALF_L + 1, HALF_L - 1) - p.x;
@@ -616,13 +629,20 @@ function pass(w: World, p: Player, through = false): void {
     emit(w, { type: 'pass', player: p.id, team: p.team, target: mate.id });
     return;
   }
-  const lofted = dist > PASS.loftDistance;
-  const speed =
-    clamp(PASS.minSpeed + dist * PASS.speedPerMeter, PASS.minSpeed, PASS.maxSpeed) *
-    (lofted ? 0.8 : 1) *
-    (through ? PASS.throughSpeedFactor : 1);
   p.facing = Math.atan2(dz, dx);
-  kickBall(w, p, 'pass', (dx / dist) * speed, lofted ? PASS.loftLift : PASS.lift, (dz / dist) * speed, 0, mate.id);
+  if (lob) {
+    // Hit just hard enough to come down on the spot: the flight time is set by the lift.
+    const flight = (2 * PASS.lobLift) / BALL.gravity;
+    // Aimed to come down just in front of them (0.95), a touch harder for air drag (1.06).
+    const speed = clamp(((dist * 0.95) / flight) * 1.06, PASS.lobMinSpeed, PASS.lobMaxSpeed);
+    kickBall(w, p, 'pass', (dx / dist) * speed, PASS.lobLift, (dz / dist) * speed, 0, mate.id, 'lob');
+    emit(w, { type: 'pass', player: p.id, team: p.team, target: mate.id, style: 'lob' });
+    return;
+  }
+  // Along the ground: quick, but it can be cut out.
+  const speed =
+    clamp(PASS.minSpeed + dist * PASS.speedPerMeter, PASS.minSpeed, PASS.maxSpeed) * (through ? PASS.throughSpeedFactor : 1);
+  kickBall(w, p, 'pass', (dx / dist) * speed, PASS.lift, (dz / dist) * speed, 0, mate.id);
   emit(w, { type: 'pass', player: p.id, team: p.team, target: mate.id });
 }
 
@@ -923,7 +943,8 @@ function checkBallContacts(w: World): void {
     const keeper = p.role === 'keeper' && inOwnBox(p);
     const d = Math.hypot(b.x - p.x, b.z - p.z);
     if (d > (keeper ? PLAYER.keeperReach : PLAYER.reach)) continue;
-    if (b.y > (keeper ? PLAYER.keeperReachHeight : 1.1)) continue;
+    const outfieldHeight = b.vy < -1 ? PLAYER.chestHeight : PLAYER.controlHeight; // chest down a dropping ball
+    if (b.y > (keeper ? PLAYER.keeperReachHeight : outfieldHeight)) continue;
     const rel = Math.hypot(b.vx - p.vx, b.vz - p.vz);
     if (!keeper && rel > PLAYER.maxTrapSpeed) continue;
     if (d < bestD) {
@@ -1097,7 +1118,7 @@ function takePenalty(w: World, p: Player, inp: Input): void {
     p.charge = Math.min(PLAYER.maxCharge, p.charge + DT);
   } else if (p.charging) {
     const lateral = -inp.moveX * Math.sin(p.facing) + inp.moveZ * Math.cos(p.facing);
-    shoot(w, p, lateral);
+    shoot(w, p, lateral, !!inp.lob); // a soft chip from the spot is a Panenka
     p.charging = false;
     p.charge = 0;
     so.kicked = true;

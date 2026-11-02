@@ -38,7 +38,7 @@ npm run dev
 
 | Situation | Buttons |
 |---|---|
-| Your team has the ball | **SHOOT** (hold) · PASS · THROUGH · SKILL |
+| Your team has the ball | **SHOOT** (hold) · PASS · THROUGH · SKILL — swipe up on SHOOT for a chip, on PASS / THROUGH for a lob |
 | The other team has it | **TACKLE** · SWITCH · PRESS (hold to chase) · SPRINT |
 | Penalties, your kick | **SHOOT** (aim with the stick first) |
 | Penalties, in goal | **DIVE** (the way the stick is pushed) |
@@ -52,7 +52,9 @@ Several fingers work at once. Landscape is recommended; the game suggests turnin
 | Sprint | Shift | RT |
 | Shoot (hold to charge) | J / Space | X |
 | Curl a shot | Steer sideways while charging | — |
-| Pass | K | A |
+| Pass (along the ground) | K | A |
+| Lob pass / lofted through ball (over defenders) | hold U + K / I | hold LB + A / Y |
+| Chip shot (over the keeper; charge sets the distance) | hold U + J | hold LB + X |
 | Through ball (into space ahead of a teammate) | I | Y |
 | Press: hold to chase the ball | E | LT |
 | Tackle (not from behind) | L | B |
@@ -64,7 +66,9 @@ Several fingers work at once. Landscape is recommended; the game suggests turnin
 
 **Skill moves:** with the ball, SKILL (O / RB) does a quick sidestep the way you push (or away from the nearest defender), or, pulling the stick back, a drag-back that turns you round. For a moment afterwards tackles miss, and a defender who lunges at it is left off balance. Each one costs a little stamina and needs a second to recharge.
 
-**Headers, volleys and crosses:** a pass from out wide near goal to a teammate in the box is a **cross**, lofted to drop at head height. When the ball is at head height near you, SHOOT heads it where you're pointing (or hold SHOOT as it arrives) and PASS heads it to a teammate. A first-time shot on a ball in the air is a **volley**: flatter and quicker. Goals from them are announced as HEADER! and VOLLEY!
+**Ground or air:** a normal pass always goes along the ground: quick, but defenders can cut it out. A **lob** (hold U / LB, or swipe up on the button) goes up over them and drops just in front of your teammate, who can chest it down. A normal shot is driven low; a **chip** goes high and soft, over a keeper who has come off their line, and how long you charge it decides where it comes down (a very soft one from the penalty spot is a Panenka).
+
+**Headers, volleys and crosses:** a lob from out wide near goal to a teammate in the box is a **cross**, dropping at head height (a normal pass from there is a low cut-back). When the ball is at head height near you, SHOOT heads it where you're pointing (or hold SHOOT as it arrives) and PASS heads it to a teammate. A first-time shot on a ball in the air is a **volley**: flatter and quicker. Goals from them are announced as HEADER! and VOLLEY!
 
 Passes and tackles fill your **Rush** meter. When it's full, your next shot is a power shot.
 

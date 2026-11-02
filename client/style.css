@@ -1647,3 +1647,10 @@ html.touch,
   color: var(--accent);
   text-align: right;
 }
+
+/* Swiped up for a lob or a chip: the button lifts and glows. */
+.tbtn.lob {
+  transform: translateY(-6px) scale(0.96);
+  border-color: rgba(125, 211, 252, 0.95);
+  box-shadow: 0 0 18px rgba(125, 211, 252, 0.6);
+}

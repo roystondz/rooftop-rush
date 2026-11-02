@@ -24,8 +24,9 @@ const PASS = 4;
 const TACKLE = 8;
 const THROUGH = 16;
 const SKILL = 32;
+const LOB = 64;
 /** Highest valid button bits value (all buttons at once). */
-export const MAX_BUTTONS = 63;
+export const MAX_BUTTONS = 127;
 
 const round = (v: number, places: number) => Math.round(v * 10 ** places) / 10 ** places;
 
@@ -36,7 +37,8 @@ export function packInput(i: Input): PackedInput {
     (i.pass ? PASS : 0) |
     (i.tackle ? TACKLE : 0) |
     (i.through ? THROUGH : 0) |
-    (i.skill ? SKILL : 0);
+    (i.skill ? SKILL : 0) |
+    (i.lob ? LOB : 0);
   return [round(i.moveX, 2), round(i.moveZ, 2), buttons];
 }
 
@@ -51,6 +53,7 @@ export function unpackInput(p: PackedInput): Input {
     tackle: (b & TACKLE) !== 0,
     through: (b & THROUGH) !== 0,
     skill: (b & SKILL) !== 0,
+    lob: (b & LOB) !== 0,
   };
 }
 

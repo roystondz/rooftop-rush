@@ -36,7 +36,7 @@ describe('through ball', () => {
     const packed = packInput({ ...idle, through: true });
     expect(unpackInput(packed).through).toBe(true);
     expect(parseClientMessage(JSON.stringify({ t: 'input', seq: 1, i: packed }))).not.toBeNull();
-    expect(parseClientMessage(JSON.stringify({ t: 'input', seq: 1, i: [0, 0, 64] }))).toBeNull(); // no such button
+    expect(parseClientMessage(JSON.stringify({ t: 'input', seq: 1, i: [0, 0, 128] }))).toBeNull(); // no such button
   });
 });
 

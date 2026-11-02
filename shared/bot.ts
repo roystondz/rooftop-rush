@@ -1,5 +1,5 @@
 // Bots press the same "buttons" a human does: they only ever return an Input.
-import { BALL, DT, PITCH, PLAYER } from './constants';
+import { BALL, DT, PASS, PITCH, PLAYER, SHOT } from './constants';
 import { clamp, lerp, mulberry32, wrapAngle } from './math';
 import { attackDir, bestPassTarget, canHead, isBehind, ownGoalX, penaltyDuel } from './sim';
 import type { Input, Player, World } from './types';
@@ -13,13 +13,14 @@ export interface BotSkill {
   keeperFocus: number; // 0..1, how well the keeper tracks shots
   headerChance: number; // chance per tick of going for a header when the ball is there
   skillChance: number; // chance of trying a skill move when a defender closes in (decided once each time)
+  chipChance: number; // chance of chipping a keeper who is well off their line
   crossChance: number; // chance per tick of crossing from out wide when a teammate is in the box
 }
 
 export const BOT_SKILLS = {
-  easy: { speedScale: 0.88, shootRange: 11, aimError: 1.8, tackleChance: 0.015, passPatience: 160, keeperFocus: 0.55, headerChance: 0.25, skillChance: 0.15, crossChance: 0.02 },
-  normal: { speedScale: 0.97, shootRange: 13, aimError: 1.0, tackleChance: 0.035, passPatience: 110, keeperFocus: 0.9, headerChance: 0.5, skillChance: 0.3, crossChance: 0.04 },
-  hard: { speedScale: 1.04, shootRange: 15, aimError: 0.5, tackleChance: 0.08, passPatience: 75, keeperFocus: 0.95, headerChance: 0.8, skillChance: 0.45, crossChance: 0.06 },
+  easy: { speedScale: 0.88, shootRange: 11, aimError: 1.8, tackleChance: 0.015, passPatience: 160, keeperFocus: 0.55, headerChance: 0.25, skillChance: 0.15, crossChance: 0.02, chipChance: 0.15 },
+  normal: { speedScale: 0.97, shootRange: 13, aimError: 1.0, tackleChance: 0.035, passPatience: 110, keeperFocus: 0.9, headerChance: 0.5, skillChance: 0.3, crossChance: 0.04, chipChance: 0.3 },
+  hard: { speedScale: 1.04, shootRange: 15, aimError: 0.5, tackleChance: 0.08, passPatience: 75, keeperFocus: 0.95, headerChance: 0.8, skillChance: 0.45, crossChance: 0.06, chipChance: 0.45 },
 } satisfies Record<string, BotSkill>;
 
 export type Difficulty = keyof typeof BOT_SKILLS;
@@ -38,6 +39,8 @@ export class Bot {
   /** Whether we've already decided about a skill move against the defender closing in now. */
   private challenged = false;
   private lastShootTap = false;
+  /** The shot being charged is a chip. */
+  private chipping = false;
   /** Penalty plans, decided once per kick. */
   private pen: {
     aimZ: number;
@@ -88,10 +91,12 @@ export class Bot {
         this.shootTicks--;
         steer(out, p, attackDir(p.team) * HALF_L, this.aimZ, 0.1);
         out.shoot = this.shootTicks > 0; // letting go fires the shot
+        out.lob = this.chipping;
         return this.finish(out);
       }
       this.shootTicks = 0;
     }
+    this.chipping = false;
 
     // Defending in your own half, bots are less sure-headed, so crosses are worth trying.
     const headerChance = this.skill.headerChance * (p.x * attackDir(p.team) < 0 ? 0.4 : 1);
@@ -242,9 +247,17 @@ export class Bot {
       const aimAngle = Math.atan2(aimZ - p.z, goalX - p.x);
       if (Math.abs(wrapAngle(aimAngle - p.facing)) < 0.35) {
         this.aimZ = aimZ + (this.rng() - 0.5) * 2 * this.skill.aimError;
-        const power = clamp(distGoal / this.skill.shootRange, 0.3, 1);
+        let power = clamp(distGoal / this.skill.shootRange, 0.3, 1);
+        // Keeper well off their line: sometimes chip them, charged to come down just under the bar.
+        const keeperOut = keeper ? Math.abs(keeper.x - goalX) : 0;
+        this.chipping = keeperOut > 3 && distGoal > 7 && distGoal < 15 && this.rng() < this.skill.chipChance;
+        if (this.chipping) {
+          const flight = (2 * SHOT.chipLift) / BALL.gravity;
+          power = clamp((distGoal / flight - SHOT.chipMinSpeed) / (SHOT.chipMaxSpeed - SHOT.chipMinSpeed), 0, 1);
+        }
         this.shootTicks = Math.max(2, Math.round((power * PLAYER.maxCharge) / DT));
         out.shoot = true;
+        out.lob = this.chipping;
       }
       return;
     }
@@ -257,6 +270,7 @@ export class Bot {
       );
       if (inBox) {
         out.pass = true;
+        out.lob = true; // a cross
         return;
       }
     }
@@ -265,6 +279,8 @@ export class Bot {
       const choice = bestPassTarget(w, p, 0.3);
       if (choice && choice.score > 1) {
         out.pass = true;
+        // Long passes go in the air, over anyone in the way.
+        out.lob = Math.hypot(choice.player.x - p.x, choice.player.z - p.z) > PASS.loftDistance;
         return;
       }
     }
@@ -345,7 +361,12 @@ export class Bot {
     if (b.owner === p.id) {
       // Holding the ball: wait a moment, then distribute.
       steer(out, p, homeX + dir * 2, 0, 1);
-      if (this.possessionTicks > 25) out.pass = true;
+      if (this.possessionTicks > 25) {
+        out.pass = true;
+        // A long throw-out goes over the top; a short one is rolled out.
+        const target = bestPassTarget(w, p, 0.3)?.player;
+        out.lob = !!target && Math.hypot(target.x - p.x, target.z - p.z) > PASS.loftDistance;
+      }
       return;
     }
 

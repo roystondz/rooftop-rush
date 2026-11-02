@@ -750,7 +750,7 @@ document.addEventListener('visibilitychange', () => {
 
 if (import.meta.env.DEV) {
   // Handy for poking at the game from the browser console.
-  Object.assign(window, { __rr: { game, trainer, sfx, get online() { return online; }, get mode() { return mode; } } });
+  Object.assign(window, { __rr: { game, trainer, sfx, touch, get online() { return online; }, get mode() { return mode; } } });
 }
 
 // --- lobby ---------------------------------------------------------------------------
