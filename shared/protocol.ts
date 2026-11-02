@@ -1,6 +1,7 @@
 // Messages between browser and server. The server never trusts what a client sends:
 // every incoming message goes through parseClientMessage, which rejects anything malformed.
 import { BALL } from './constants';
+import { KITS } from './kits';
 import { clamp, lerp, wrapAngle } from './math';
 import type { GameMode, Input, MatchEvent, Phase, Shootout, Team, World } from './types';
 
@@ -157,9 +158,9 @@ export function lerpSnapshots(w: World, a: Snapshot, b: Snapshot, t: number): vo
 // --- messages -----------------------------------------------------------------
 
 export type ClientMessage =
-  | { t: 'quick'; name?: string; mode?: GameMode }
-  | { t: 'create'; name?: string; mode?: GameMode }
-  | { t: 'join'; code: string; name?: string }
+  | { t: 'quick'; name?: string; kit?: number; mode?: GameMode }
+  | { t: 'create'; name?: string; kit?: number; mode?: GameMode }
+  | { t: 'join'; code: string; name?: string; kit?: number }
   | { t: 'team'; team: Team } // lobby: move to the other team
   | { t: 'start' } // lobby: the host starts the match
   | { t: 'input'; seq: number; i: PackedInput }
@@ -189,11 +190,13 @@ export interface LobbyInfo {
   players: LobbyPlayer[];
   /** The two team names (each team is named by its first player). */
   names: [string, string];
+  /** The two teams' kits (indexes into KITS), chosen the same way. */
+  kits: [number, number];
 }
 
 export type ServerMessage =
   | ({ t: 'lobby' } & LobbyInfo)
-  | { t: 'start'; you: number; team: Team; names: [string, string]; mode: GameMode }
+  | { t: 'start'; you: number; team: Team; names: [string, string]; kits: [number, number]; mode: GameMode }
   | { t: 'snap'; s: Snapshot; ack: number }
   | { t: 'notice'; text: string }
   | { t: 'error'; message: string }
@@ -214,11 +217,14 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   const msg = m as Record<string, unknown>;
   // A team name is optional; the server cleans it (shared/names.ts) before anyone sees it.
   const name = typeof msg.name === 'string' ? msg.name.slice(0, 64) : undefined;
+  // So is a kit; anything that isn't a valid kit number is dropped here.
+  const kit = typeof msg.kit === 'number' && Number.isInteger(msg.kit) && msg.kit >= 0 && msg.kit < KITS.length ? msg.kit : undefined;
   switch (msg.t) {
     case 'quick':
     case 'create': {
-      const out: { t: 'quick' | 'create'; name?: string; mode?: GameMode } = { t: msg.t };
+      const out: { t: 'quick' | 'create'; name?: string; kit?: number; mode?: GameMode } = { t: msg.t };
       if (name !== undefined) out.name = name;
+      if (kit !== undefined) out.kit = kit;
       if (msg.mode === 'match' || msg.mode === 'penalties') out.mode = msg.mode;
       return out;
     }
@@ -228,9 +234,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return { t: msg.t };
     case 'team':
       return msg.team === 0 || msg.team === 1 ? { t: 'team', team: msg.team } : null;
-    case 'join':
+    case 'join': {
       if (typeof msg.code !== 'string' || !/^[A-Za-z]{4}$/.test(msg.code)) return null;
-      return name === undefined ? { t: 'join', code: msg.code.toUpperCase() } : { t: 'join', code: msg.code.toUpperCase(), name };
+      const out: { t: 'join'; code: string; name?: string; kit?: number } = { t: 'join', code: msg.code.toUpperCase() };
+      if (name !== undefined) out.name = name;
+      if (kit !== undefined) out.kit = kit;
+      return out;
+    }
     case 'ping':
       return isNum(msg.at) ? { t: 'ping', at: msg.at } : null;
     case 'input': {

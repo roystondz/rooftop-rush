@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { BALL, PITCH, PLAYER } from '../shared/constants';
 import { clamp, lerp, mulberry32 } from '../shared/math';
 import { penaltyCameraForward } from '../shared/control';
+import { DEFAULT_KITS, KITS } from '../shared/kits';
 import type { World } from '../shared/types';
 
 const HALF_L = PITCH.length / 2;
@@ -10,7 +11,6 @@ const HALF_W = PITCH.width / 2;
 const GOAL_HALF = PITCH.goalWidth / 2;
 const WALL_H = 4.5;
 
-export const TEAM_COLORS = [0x22d3ee, 0xf472b6] as const;
 const KEEPER_COLORS = [0xfacc15, 0xfb923c] as const;
 
 /** Positions from the previous tick, so drawing can blend smoothly between ticks. */
@@ -74,6 +74,11 @@ export class Renderer {
   private confettiVel = new Float32Array(0);
   private confettiLife = 0;
   private nets: THREE.Group[] = [];
+  /** Each team's kit (index into KITS), and the scenery that wears its colour. */
+  private kits: [number, number] = [...DEFAULT_KITS];
+  private teamLights: THREE.PointLight[] = [];
+  private teamNeon: THREE.MeshStandardMaterial[][] = [[], []];
+  private netMats: THREE.MeshBasicMaterial[] = [];
   private netPulse = [0, 0];
   private camX = 0;
   /** Penalty camera, eased between kicks so it glides from one end to the other. */
@@ -114,12 +119,31 @@ export class Renderer {
   setupPlayers(w: World): void {
     for (const v of this.playerViews) this.scene.remove(v.root);
     this.playerViews = w.players.map((p) =>
-      this.makePlayer(p.role === 'keeper' ? KEEPER_COLORS[p.team] : TEAM_COLORS[p.team], p.team, p.id, SHIRT_NUMBERS[p.role]),
+      this.makePlayer(
+        p.role === 'keeper' ? KEEPER_COLORS[p.team] : KITS[this.kits[p.team]].shirt,
+        KITS[this.kits[p.team]].shorts,
+        p.id,
+        SHIRT_NUMBERS[p.role],
+      ),
     );
     for (const v of this.playerViews) this.scene.add(v.root);
     this.camX = 0;
     this.trailPoints.length = 0;
     this.ghost.visible = false;
+  }
+
+  /** The teams' kits. Call before setupPlayers; it also recolours the nets and lights. */
+  setKits(kits: readonly [number, number]): void {
+    this.kits = [kits[0], kits[1]];
+    for (const team of [0, 1] as const) {
+      const c = KITS[kits[team]].shirt;
+      this.teamLights[team]?.color.setHex(c);
+      this.netMats[team]?.color.setHex(c);
+      for (const m of this.teamNeon[team]) {
+        m.color.setHex(c);
+        m.emissive.setHex(c);
+      }
+    }
   }
 
   /** Online: players controlled by other people get a thin white ring. */
@@ -167,7 +191,7 @@ export class Renderer {
     this.pulseNet(x);
     const pos = this.confetti.geometry.getAttribute('position') as THREE.BufferAttribute;
     const col = this.confetti.geometry.getAttribute('color') as THREE.BufferAttribute;
-    const c = new THREE.Color(TEAM_COLORS[team]);
+    const c = new THREE.Color(KITS[this.kits[team]].shirt);
     const gold = new THREE.Color(0xfacc15);
     const rnd = mulberry32(Math.floor(this.time * 1000));
     for (let i = 0; i < pos.count; i++) {
@@ -332,11 +356,13 @@ export class Renderer {
         this.scene.add(pole, lamp);
       }
     }
-    const fill0 = new THREE.PointLight(TEAM_COLORS[0], 40, 30, 1.6);
-    fill0.position.set(-HALF_L, 5, 0);
-    const fill1 = new THREE.PointLight(TEAM_COLORS[1], 40, 30, 1.6);
-    fill1.position.set(HALF_L, 5, 0);
-    this.scene.add(fill0, fill1);
+    // Soft light in each team's colour over the goal they defend.
+    for (const team of [0, 1] as const) {
+      const fill = new THREE.PointLight(KITS[this.kits[team]].shirt, 40, 30, 1.6);
+      fill.position.set(team === 0 ? -HALF_L : HALF_L, 5, 0);
+      this.teamLights.push(fill);
+      this.scene.add(fill);
+    }
   }
 
   private buildArena(): void {
@@ -388,7 +414,7 @@ export class Renderer {
       const sideLen = HALF_W - GOAL_HALF;
       for (const sz of [-1, 1]) {
         addPanel(sideLen, WALL_H, sx * HALF_L, WALL_H / 2, sz * (GOAL_HALF + sideLen / 2), Math.PI / 2);
-        this.addNeon(sideLen, sx * HALF_L, sz * (GOAL_HALF + sideLen / 2), Math.PI / 2, TEAM_COLORS[team]);
+        this.teamNeon[team].push(this.addNeon(sideLen, sx * HALF_L, sz * (GOAL_HALF + sideLen / 2), Math.PI / 2, KITS[this.kits[team]].shirt));
       }
       const topH = WALL_H - PITCH.goalHeight;
       addPanel(PITCH.goalWidth, topH, sx * HALF_L, PITCH.goalHeight + topH / 2, 0, Math.PI / 2);
@@ -409,14 +435,13 @@ export class Renderer {
     }
   }
 
-  private addNeon(length: number, x: number, z: number, rotY: number, color: number): void {
-    const strip = new THREE.Mesh(
-      new THREE.BoxGeometry(length, 0.12, 0.12),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.5 }),
-    );
+  private addNeon(length: number, x: number, z: number, rotY: number, color: number): THREE.MeshStandardMaterial {
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.5 });
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(length, 0.12, 0.12), mat);
     strip.position.set(x, 0.06, z);
     strip.rotation.y = rotY;
     this.scene.add(strip);
+    return mat;
   }
 
   private buildGoal(sx: number, team: 0 | 1): THREE.Group {
@@ -439,12 +464,13 @@ export class Renderer {
     net.position.set(sx * HALF_L, 0, 0);
     const mat = new THREE.MeshBasicMaterial({
       map: netTexture(),
-      color: TEAM_COLORS[team],
+      color: KITS[this.kits[team]].shirt,
       transparent: true,
       opacity: 0.8,
       side: THREE.DoubleSide,
       depthWrite: false,
     });
+    this.netMats[team] = mat;
     const d = PITCH.goalDepth;
     const h = PITCH.goalHeight;
     const back = new THREE.Mesh(new THREE.PlaneGeometry(PITCH.goalWidth, h), mat);
@@ -602,12 +628,12 @@ export class Renderer {
    * A low-poly footballer: boots, socks, shorts, a tapered shirt with a number on the back,
    * jointed arms and legs, and a head with hair and eyes. Skin and hair vary from player to player.
    */
-  private makePlayer(color: number, team: 0 | 1, id: number, number: number): PlayerView {
+  private makePlayer(color: number, shortsColor: number, id: number, number: number): PlayerView {
     const root = new THREE.Group();
     root.scale.setScalar(1.12); // a touch larger than life, so players read well from the match camera
     const mat = (c: number, roughness = 0.7) => new THREE.MeshStandardMaterial({ color: c, roughness });
     const shirt = mat(color, 0.6);
-    const shorts = mat(team === 0 ? 0x0e2a4a : 0x3b0d2c);
+    const shorts = mat(shortsColor);
     const socks = mat(color, 0.8);
     const skin = mat(SKIN_TONES[id % SKIN_TONES.length], 0.8);
     const hair = mat(HAIR_COLORS[(id * 5 + 1) % HAIR_COLORS.length], 0.9); // paired so hair stands out from skin

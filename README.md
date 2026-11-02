@@ -87,6 +87,7 @@ shared/            Runs the same in the browser and on the server. No graphics, 
   control.ts       Which player each person controls (several per team; auto-switch never takes a teammate's player).
   interp.ts        Adaptive smoothing buffer for online play.
   names.ts         Cleaning and pairing team names.
+  kits.ts          Shirt colours, and picking two that don't clash.
 server/            Node.js only.
   server.ts        WebSocket server: quick match, room codes, rate limiting.
   room.ts          One room: lobby (teams, host), then the match at 60 ticks/s with 60 snapshots a second.
@@ -97,6 +98,7 @@ client/            Browser only.
   online.ts        Online match: send inputs, receive snapshots, blend between them.
   net.ts           WebSocket connection, server address, and the ?lag= simulator.
   effects.ts       Match events → sounds, screen shake, messages.
+  crowd.ts         When the crowd reacts: shots on target, near misses, attacks, last 30 s, full time.
   replay.ts        Instant replay: keeps the last few seconds and replays goals in slow motion.
   stats.ts         Your record (results, goals, penalties, streaks), saved in this browser.
   stats-view.ts    The "Your stats" screen.
@@ -173,4 +175,5 @@ Then open http://localhost:3000.
 6. ~~Deploy setup: one Render service for page and server~~ ✅
 7. ~~Goal celebrations and instant replays (local and online)~~ ✅
 8. ~~Your stats, saved in the browser (accounts can sync them later)~~ ✅
-9. Accounts and leaderboard with Supabase.
+9. ~~Kit colours, invite links, crowd reactions~~ ✅
+10. Accounts and leaderboard with Supabase.

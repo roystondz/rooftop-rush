@@ -116,6 +116,74 @@ export class Sfx {
     this.burst(1.1, 550, 0.18 * amount, 0.3);
   }
 
+  /** Anticipation as a shot heads for goal: the crowd draws breath. */
+  crowdRise(): void {
+    this.filteredNoise(0.9, 420, 900, 0.16, 0.45);
+  }
+
+  /** A shot just wide: a falling "ohhh". */
+  groan(): void {
+    this.filteredNoise(1.1, 700, 260, 0.2, 0.08);
+  }
+
+  /** An attacker in the box: a low, short murmur. */
+  murmur(): void {
+    this.filteredNoise(0.8, 300, 380, 0.09, 0.3);
+  }
+
+  /** Clap-clap-clap, twice, over a swell: the last 30 seconds. */
+  finale(): void {
+    this.crowdSwell(0.8);
+    [0, 0.22, 0.44, 0.9, 1.12, 1.34].forEach((at) => this.clap(at, 0.5));
+  }
+
+  /** Applause at full time: lots of separate claps that thin out. */
+  applause(): void {
+    for (let i = 0; i < 70; i++) {
+      const at = Math.random() ** 1.6 * 2.6; // busiest at the start
+      this.clap(at, 0.15 + Math.random() * 0.25);
+    }
+  }
+
+  private clap(at: number, vol: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.noise) return;
+    const t = ctx.currentTime + at;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 1400 + Math.random() * 1200;
+    filter.Q.value = 1.2;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    src.connect(filter).connect(g).connect(this.master);
+    src.start(t, Math.random() * 1.5);
+    src.stop(t + 0.07);
+  }
+
+  /** Noise through a band-pass filter that glides from one pitch to another: crowd voices. */
+  private filteredNoise(dur: number, fromHz: number, toHz: number, vol: number, attack: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || !this.noise) return;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 0.9;
+    filter.frequency.setValueAtTime(fromHz, t);
+    filter.frequency.exponentialRampToValueAtTime(toHz, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(filter).connect(g).connect(this.master);
+    src.start(t, Math.random());
+    src.stop(t + dur);
+  }
+
   private thump(freq: number, dur: number, vol: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.master) return;

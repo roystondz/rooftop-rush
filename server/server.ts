@@ -58,8 +58,8 @@ export function startServer(port: number, staticDir?: string, roomOptions: RoomO
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(m));
     };
 
-    const enter = (r: Room, name?: string) => {
-      const s = r.join(send, name);
+    const enter = (r: Room, name?: string, kit?: number) => {
+      const s = r.join(send, name, kit);
       if (!s) {
         send({ t: 'error', message: 'That room is full.' });
         return;
@@ -92,17 +92,17 @@ export function startServer(port: number, staticDir?: string, roomOptions: RoomO
           const byFullest = (a: Room, b: Room) => b.playerCount - a.playerCount;
           const lobby = open.filter((r) => !r.started).sort(byFullest)[0];
           const live = open.filter((r) => r.started).sort(byFullest)[0];
-          enter(lobby ?? live ?? createRoom(true, mode), msg.name);
+          enter(lobby ?? live ?? createRoom(true, mode), msg.name, msg.kit);
           return;
         }
         case 'create':
-          if (!room) enter(createRoom(false, msg.mode), msg.name);
+          if (!room) enter(createRoom(false, msg.mode), msg.name, msg.kit);
           return;
         case 'join': {
           if (room) return;
           const r = rooms.get(msg.code);
           if (!r) send({ t: 'error', message: `No room with code ${msg.code}.` });
-          else enter(r, msg.name);
+          else enter(r, msg.name, msg.kit);
           return;
         }
         case 'leave':

@@ -3,11 +3,14 @@ import type { MatchEvent, Phase, Team, World } from '../shared/types';
 import type { Sfx } from './audio';
 import { DEFAULT_TEAM_NAMES } from '../shared/names';
 import type { Hud } from './hud';
-import { TEAM_COLORS, type Renderer } from './renderer';
+import { DEFAULT_KITS, kitCss } from '../shared/kits';
+import { Crowd, type Reaction } from './crowd';
+import type { Renderer } from './renderer';
 
 export class Effects {
   myTeam: Team = 0;
   names: [string, string] = [...DEFAULT_TEAM_NAMES];
+  kits: [number, number] = [...DEFAULT_KITS];
   /** How to tell the player to pass: "press K" on a keyboard, "tap PASS" on a phone. */
   passHint = 'press K';
   /** How to take a penalty, and how to save one, on this device. */
@@ -16,6 +19,7 @@ export class Effects {
   /** Every match event, as it happens (used to keep your stats). */
   onEvent: (w: World, e: MatchEvent) => void = () => {};
   private lastPhase: Phase | null = null;
+  private crowd = new Crowd();
 
   constructor(
     private sfx: Sfx,
@@ -26,10 +30,12 @@ export class Effects {
   reset(myTeam: Team): void {
     this.myTeam = myTeam;
     this.lastPhase = null;
+    this.crowd.reset();
   }
 
   /** Call whenever the world changes, so phase changes (like a new kickoff) get announced. */
   watchPhase(w: World): void {
+    for (const r of this.crowd.watch(w)) this.react(r);
     if (w.phase === this.lastPhase) return;
     if (w.phase === 'kickoff' && w.mode === 'match') this.hud.message('KICK OFF', '', 1.2);
     // The first kick is set up with the world, before any events reach us, so announce it here.
@@ -56,8 +62,38 @@ export class Effects {
     this.hud.message(title, `Kick ${n} · ${hint}`, 2);
   }
 
+  /**
+   * Online, your own kicks are heard early (from prediction), so the server's copy of the event
+   * skips handle(). The crowd still needs to know about the shot.
+   */
+  crowdEvent(w: World, e: MatchEvent): void {
+    for (const r of this.crowd.event(w, e)) this.react(r);
+  }
+
+  private react(r: Reaction): void {
+    switch (r) {
+      case 'rise':
+        this.sfx.crowdRise();
+        break;
+      case 'groan':
+        this.sfx.groan();
+        break;
+      case 'murmur':
+        this.sfx.murmur();
+        break;
+      case 'finale':
+        this.sfx.finale();
+        this.hud.message('LAST 30 SECONDS', '', 1.4);
+        break;
+      case 'applause':
+        this.sfx.applause();
+        break;
+    }
+  }
+
   handle(w: World, e: MatchEvent): void {
     this.onEvent(w, e);
+    this.crowdEvent(w, e);
     const ours = e.team === this.myTeam;
     switch (e.type) {
       case 'whistle':
@@ -97,7 +133,7 @@ export class Effects {
         this.sfx.goal();
         this.renderer.addShake(0.9);
         this.renderer.goalBurst(team, w.ball.x);
-        const color = `#${TEAM_COLORS[team].toString(16).padStart(6, '0')}`;
+        const color = kitCss(this.kits[team]);
         const sub = `${this.names[team]} · ${w.score[0]} – ${w.score[1]}`;
         if (w.mode === 'match') this.hud.goal(e.ownGoal ? 'OWN GOAL' : 'GOAL!', sub, color);
         else this.hud.message('GOAL!', sub, 2.4);

@@ -75,6 +75,10 @@
           <span>Your team name</span>
           <input id="team-name" maxlength="14" placeholder="SKYLINE" autocomplete="off" spellcheck="false" />
         </label>
+        <div class="kit-field">
+          <span>Your kit</span>
+          <div id="kit-pick" class="kit-pick" role="radiogroup" aria-label="Your kit"></div>
+        </div>
         <div class="mode-pick">
           <button data-game-mode="match" class="selected">Match<small>3 minutes, 3v3</small></button>
           <button data-game-mode="penalties">Penalties<small>shootout</small></button>
@@ -112,6 +116,10 @@
       <div class="panel">
         <h2>Play online</h2>
         <p class="tag">Up to 3 people a side. Bots play any empty spots.</p>
+        <div id="invite-card" class="invite-card hidden">
+          <span>You've been invited to room <b id="invite-code">----</b></span>
+          <button id="invite-join" class="primary">Join the room</button>
+        </div>
         <button id="quick" class="primary">Quick match</button>
         <button id="create">Create private room</button>
         <form id="join-form" class="join-row">
@@ -129,7 +137,7 @@
         <div id="lobby-code-row" class="lobby-code-row">
           <span class="tag">Room code</span>
           <span id="room-code" class="room-code small">----</span>
-          <button id="copy-code" class="mini">Copy</button>
+          <button id="copy-code" class="mini">Invite</button>
         </div>
         <p id="lobby-mode" class="tag"></p>
         <div class="lobby-teams">
@@ -147,7 +155,7 @@
         <p id="lobby-status" class="status"></p>
         <button id="lobby-start" class="primary">Start match</button>
         <button id="lobby-leave">Leave room</button>
-        <p class="hint">Up to 3 people a side; bots play any empty spots. Friends join with the room code, and can even join a match that's already started.</p>
+        <p class="hint">Up to 3 people a side; bots play any empty spots. Friends join with the invite link or the room code, and can even join a match that's already started.</p>
       </div>
     </div>
 

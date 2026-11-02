@@ -289,6 +289,25 @@ describe('quick match', () => {
 });
 
 describe('online play', () => {
+  it('dresses each team in its first person\'s kit, and never both teams the same', async () => {
+    const host = await TestClient.connect(server.port);
+    host.send({ t: 'create', kit: 2 });
+    const code = (await host.waitFor('lobby')).code;
+    const friend = await TestClient.connect(server.port);
+    friend.send({ t: 'join', code, kit: 2 }); // same kit as the host: their team changes
+    await host.lobbyWhere((l) => l.players.length === 2);
+    expect(host.lobby().kits).toEqual([2, 1]);
+    host.send({ t: 'start' });
+    expect((await friend.waitFor('start')).kits).toEqual([2, 1]);
+    closeAll([host, friend]);
+  });
+
+  it('ignores a kit that does not exist', async () => {
+    const [clients] = await lobbyWith(2, { kit: 99 });
+    expect(clients[0].lobby().kits).toEqual([0, 1]);
+    closeAll(clients);
+  });
+
   it("tells everyone the team names, cleaned up", async () => {
     const [[a, b]] = await lobbyWith(1, { name: '  red lions ' }).then(async ([[host], code]) => {
       const friend = await TestClient.connect(server.port);

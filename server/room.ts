@@ -14,6 +14,7 @@ import {
   type Handover,
   type Human,
 } from '../shared/control';
+import { cleanKit, DEFAULT_KITS, teamKits } from '../shared/kits';
 import { cleanTeamName, DEFAULT_TEAM_NAMES, teamNames } from '../shared/names';
 import {
   makeSnapshot,
@@ -50,6 +51,8 @@ export interface Seat {
   team: Team;
   /** The name this person typed (cleaned). The first person on a team names the team. */
   name: string;
+  /** The kit this person picked, if any. The first person on a team chooses the team's kit. */
+  kit?: number;
   send: (m: ServerMessage) => void;
   queue: { seq: number; input: Input }[];
   last: Input;
@@ -66,6 +69,7 @@ export class Room {
   private bots: Bot[] = [];
   private humans: Human[] = [];
   private names: [string, string] = [...DEFAULT_TEAM_NAMES];
+  private kits: [number, number] = [...DEFAULT_KITS];
   private events: MatchEvent[] = [];
   private loop: ReturnType<typeof setTimeout> | null = null;
   private quickStart: { timer: ReturnType<typeof setTimeout>; at: number } | null = null;
@@ -102,7 +106,7 @@ export class Room {
   }
 
   /** Seats a new person on the emptier team. Returns null when the room is full. */
-  join(send: (m: ServerMessage) => void, wantedName?: string): Seat | null {
+  join(send: (m: ServerMessage) => void, wantedName?: string, wantedKit?: number): Seat | null {
     const index = this.seats.indexOf(null);
     if (index < 0) return null;
     const team: Team = this.teamCount(1) < this.teamCount(0) ? 1 : 0;
@@ -110,6 +114,7 @@ export class Room {
       seat: index,
       team: this.teamCount(team) < MAX_PER_TEAM ? team : team === 0 ? 1 : 0,
       name: cleanTeamName(wantedName, `PLAYER ${index + 1}`),
+      kit: wantedKit === undefined ? undefined : cleanKit(wantedKit, DEFAULT_KITS[0]),
       send,
       queue: [],
       last: { ...NO_INPUT },
@@ -124,7 +129,7 @@ export class Room {
       const human: Human = { seat: index, team: seat.team, player: this.freePlayer(seat.team) };
       this.humans.push(human);
       this.bots[human.player]?.reset();
-      send({ t: 'start', you: index, team: seat.team, names: this.names, mode: this.mode });
+      send({ t: 'start', you: index, team: seat.team, names: this.names, kits: this.kits, mode: this.mode });
       this.notice(`${seat.name} joined the match`, seat);
     }
     this.broadcastLobby();
@@ -201,6 +206,7 @@ export class Room {
       .map((s) => ({ seat: s.seat, name: s.name, team: s.team }));
     const startsIn = this.quickStart ? Math.max(0, Math.ceil((this.quickStart.at - Date.now()) / 1000)) : null;
     const names = this.world ? this.names : this.lobbyNames();
+    const kits = this.world ? this.kits : this.lobbyKits();
     for (const s of this.seats) {
       s?.send({
         t: 'lobby',
@@ -213,6 +219,7 @@ export class Room {
         startsIn,
         players,
         names,
+        kits,
       });
     }
   }
@@ -222,6 +229,13 @@ export class Room {
     const captain = (team: Team) =>
       this.seats.filter((s): s is Seat => s?.team === team).sort((a, b) => a.seat - b.seat)[0]?.name;
     return teamNames(captain(0), captain(1));
+  }
+
+  /** Each team wears its first person's kit; on a clash the second team changes. */
+  private lobbyKits(): [number, number] {
+    const captain = (team: Team) =>
+      this.seats.filter((s): s is Seat => s?.team === team).sort((a, b) => a.seat - b.seat)[0]?.kit;
+    return teamKits(captain(0), captain(1));
   }
 
   /**
@@ -269,6 +283,7 @@ export class Room {
     const seed = Math.floor(Math.random() * 1e9);
     this.bots = w.players.map((p) => new Bot(p.id, BOT_SKILLS.normal, seed));
     this.names = this.lobbyNames();
+    this.kits = this.lobbyKits();
     this.humans = this.seats
       .filter((s): s is Seat => s !== null)
       .map((s) => ({ seat: s.seat, team: s.team, player: -1 }));
@@ -278,7 +293,7 @@ export class Room {
     for (const s of this.seats) {
       if (!s) continue;
       Object.assign(s, { queue: [], last: { ...NO_INPUT } });
-      s.send({ t: 'start', you: s.seat, team: s.team, names: this.names, mode: this.mode });
+      s.send({ t: 'start', you: s.seat, team: s.team, names: this.names, kits: this.kits, mode: this.mode });
     }
     this.broadcastLobby();
     this.startLoop();

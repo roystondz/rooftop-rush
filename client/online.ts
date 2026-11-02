@@ -64,6 +64,8 @@ export class OnlineGame {
   private ballOffset = { x: 0, y: 0, z: 0 };
   private handOverBall = false;
   private replay = new Replay();
+  /** The two teams' kits for this match. */
+  kits: [number, number] = [0, 1];
 
   /** `debug` shows a ghost where the server last saw your player, plus prediction numbers. */
   constructor(
@@ -293,6 +295,8 @@ export class OnlineGame {
         this.renderer.setReplay(null);
         this.started = true;
         this.effects.reset(m.team);
+        this.kits = m.kits;
+        this.renderer.setKits(m.kits);
         this.renderer.setupPlayers(this.view);
         this.hud.show(m.team);
         this.on.start(m.team, m.names);
@@ -308,6 +312,7 @@ export class OnlineGame {
           const ourKick = (e.type === 'shot' || e.type === 'powerShot' || e.type === 'pass') && e.player === this.kick.kicker;
           if (ourKick && this.kickSoundPlayed) {
             this.kickSoundPlayed = false; // already heard it when we predicted the kick
+            this.effects.crowdEvent(this.latest, e);
             continue;
           }
           // A bounce off the ground has no player; only a touch by someone else ends our prediction.

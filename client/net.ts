@@ -29,6 +29,17 @@ export function lagFromUrl(search = location.search): LagSettings {
   return { lagMs: num('lag'), jitterMs: num('jitter') };
 }
 
+/** The room code in an invite link (`?room=ABCD`), or null if there isn't a valid one. */
+export function roomFromUrl(search = location.search): string | null {
+  const code = new URLSearchParams(search).get('room')?.trim().toUpperCase() ?? '';
+  return /^[A-Z]{4}$/.test(code) ? code : null;
+}
+
+/** A link that opens the game and offers to join this room. */
+export function inviteLink(code: string, loc: { origin: string; pathname: string } = location): string {
+  return `${loc.origin}${loc.pathname}?room=${encodeURIComponent(code)}`;
+}
+
 /** Delays callbacks like a network would, while keeping their order (as TCP does). */
 class DelayLine {
   private lastAt = 0;

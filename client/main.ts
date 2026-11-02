@@ -1,5 +1,6 @@
 import './style.css';
 import type { Difficulty } from '../shared/bot';
+import { DEFAULT_KITS, KITS, kitCss, teamKits } from '../shared/kits';
 import { DEFAULT_TEAM_NAMES, MAX_TEAM_NAME, teamNames } from '../shared/names';
 import type { World } from '../shared/types';
 import { Sfx } from './audio';
@@ -8,7 +9,7 @@ import { Game } from './game';
 import { Hud } from './hud';
 import { InputManager } from './input';
 import { isTouchDevice } from './joystick';
-import { Connection, lagFromUrl, serverUrl } from './net';
+import { Connection, inviteLink, lagFromUrl, roomFromUrl, serverUrl } from './net';
 import { MAX_PER_TEAM, type LobbyInfo } from '../shared/protocol';
 import { OnlineGame } from './online';
 import { Renderer } from './renderer';
@@ -111,10 +112,21 @@ function enterFullscreen(): void {
     });
 }
 
-function useNames(next: [string, string]): void {
+/** Team names and kits for the match about to be played (call before the match starts). */
+function useTeams(next: [string, string], kits: readonly [number, number] = DEFAULT_KITS): void {
   names = next;
   hud.setTeamNames(names);
   effects.names = names;
+  effects.kits = [kits[0], kits[1]];
+  renderer.setKits(kits);
+  showKitColours(kits);
+}
+
+/** Scoreboard and lobby use the kit colours too. */
+function showKitColours(kits: readonly [number, number]): void {
+  const root = document.documentElement.style;
+  root.setProperty('--kit0', kitCss(kits[0]));
+  root.setProperty('--kit1', kitCss(kits[1]));
 }
 
 function playLocal(): void {
@@ -123,7 +135,7 @@ function playLocal(): void {
   leaveOnline();
   mode = 'local';
   show(null);
-  useNames(teamNames(settings.teamName, undefined));
+  useTeams(teamNames(settings.teamName, undefined), teamKits(settings.kit, undefined));
   opponent = difficulty;
   game.start(difficulty, gameMode);
 }
@@ -217,7 +229,7 @@ async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<v
     },
     start(team, matchNames) {
       show(null);
-      useNames(matchNames);
+      useTeams(matchNames, online?.kits);
       hud.message(`YOU ARE ${names[team]}`, team === 0 ? 'Attack to the right →' : '← Attack to the left', 2);
     },
     notice(text) {
@@ -239,10 +251,11 @@ async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<v
   });
   // Send your chosen name; the server cleans it and tells both players the final names.
   const name = settings.teamName || undefined;
+  const kit = settings.kit;
   // Joining with a code plays whatever the room was created for.
-  if (first === 'quick') conn.send({ t: 'quick', name, mode: gameMode });
-  else if (first === 'create') conn.send({ t: 'create', name, mode: gameMode });
-  else conn.send({ t: 'join', code: first.join, name });
+  if (first === 'quick') conn.send({ t: 'quick', name, kit, mode: gameMode });
+  else if (first === 'create') conn.send({ t: 'create', name, kit, mode: gameMode });
+  else conn.send({ t: 'join', code: first.join, name, kit });
   setStatus('');
 }
 
@@ -299,10 +312,33 @@ $('lobby-start').addEventListener('click', () => online?.requestStart());
 document.querySelectorAll<HTMLButtonElement>('[data-join-team]').forEach((btn) => {
   btn.addEventListener('click', () => online?.chooseTeam(Number(btn.dataset.joinTeam) as Team));
 });
+// Invite: the phone's share sheet where there is one, otherwise copy the link.
 $('copy-code').addEventListener('click', () => {
-  void navigator.clipboard?.writeText($('room-code').textContent ?? '');
-  $('copy-code').textContent = 'Copied!';
-  setTimeout(() => ($('copy-code').textContent = 'Copy'), 1200);
+  const code = $('room-code').textContent ?? '';
+  const url = inviteLink(code);
+  const shared = 'share' in navigator && touchDevice
+    ? navigator.share({ title: 'Rooftop Rush', text: `Join my Rooftop Rush room (${code})`, url })
+    : navigator.clipboard?.writeText(url).then(() => {
+        $('copy-code').textContent = 'Link copied!';
+        setTimeout(() => ($('copy-code').textContent = 'Invite'), 1500);
+      });
+  // Sharing cancelled or clipboard blocked: the code is still on screen to read out.
+  void shared?.catch(() => {});
+});
+
+// Opened from an invite link: offer to join that room with one tap.
+const invited = roomFromUrl();
+if (invited) {
+  $('invite-code').textContent = invited;
+  $('invite-card').classList.remove('hidden');
+  $<HTMLInputElement>('code-input').value = invited;
+  show('online');
+}
+$('invite-join').addEventListener('click', () => {
+  if (!invited) return;
+  $('invite-card').classList.add('hidden');
+  history.replaceState(null, '', location.pathname); // so a refresh doesn't offer it again
+  void goOnline({ join: invited });
 });
 
 $('again').addEventListener('click', () => {
@@ -339,6 +375,33 @@ nameInput.addEventListener('input', () => {
 nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') playLocal();
 });
+
+// --- kit -------------------------------------------------------------------------------
+
+const kitPick = $('kit-pick');
+KITS.forEach((kit, i) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.setAttribute('role', 'radio');
+  btn.setAttribute('aria-label', kit.name);
+  btn.title = kit.name;
+  btn.style.setProperty('--kit', kitCss(i));
+  btn.style.setProperty('--kit-shorts', `#${kit.shorts.toString(16).padStart(6, '0')}`);
+  btn.addEventListener('click', () => {
+    settings.kit = i;
+    saveSettings(settings);
+    showKitChoice();
+  });
+  kitPick.append(btn);
+});
+
+function showKitChoice(): void {
+  [...kitPick.children].forEach((b, i) => {
+    b.classList.toggle('selected', i === settings.kit);
+    b.setAttribute('aria-checked', String(i === settings.kit));
+  });
+}
+showKitChoice();
 
 // --- sound and music ----------------------------------------------------------------
 
@@ -398,6 +461,7 @@ let lobbyCountdownEnd: number | null = null;
 /** Draws the lobby: both teams, who's in them, and what happens next. */
 function renderLobby(info: LobbyInfo): void {
   $('room-code').textContent = info.code;
+  showKitColours(info.kits);
   $('lobby-code-row').classList.toggle('hidden', info.isPublic);
   $('lobby-title').textContent = info.isPublic ? 'Quick match' : 'Your room';
   $('lobby-mode').textContent = info.mode === 'penalties' ? 'Penalty shootout' : 'Match · 3 minutes';
