@@ -51,6 +51,12 @@ export class Effects {
     this.lastPhase = w.phase;
   }
 
+  /** Training: a target hit gets the goal fanfare and confetti, without the match's goal banner. */
+  cheer(w: World): void {
+    this.sfx.goal();
+    this.renderer.goalBurst(this.myTeam, w.ball.x);
+  }
+
   /** The replayed ball has just gone in: bulge the net and lift the crowd again. */
   replayGoal(w: World): void {
     this.renderer.pulseNet(w.ball.x);

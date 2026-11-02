@@ -58,6 +58,12 @@ export class Hud {
     setTimeout(() => li.remove(), 4200);
   }
 
+  /** Training: the drill's progress in place of the scoreboard; null puts the scoreboard back. */
+  setTraining(text: string | null): void {
+    this.root.classList.toggle('training', text !== null);
+    $('training-bar').textContent = text ?? '';
+  }
+
   /** Shows or hides the replay letterbox and badge. */
   showReplay(on: boolean): void {
     this.replay.classList.toggle('hidden', !on);

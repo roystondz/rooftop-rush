@@ -76,6 +76,9 @@ export class Renderer {
   private confettiVel = new Float32Array(0);
   private confettiLife = 0;
   private nets: THREE.Group[] = [];
+  private targets: THREE.Group[] = [];
+  /** Training: the same side-on camera, closer in, so targets are easy to see. */
+  private close = false;
   /** Each team's kit (index into KITS), and the scenery that wears its colour. */
   private kits: [number, number] = [...DEFAULT_KITS];
   private teamLights: THREE.PointLight[] = [];
@@ -146,6 +149,45 @@ export class Renderer {
         m.emissive.setHex(c);
       }
     }
+  }
+
+  /** Brings the usual camera closer (training), or back to normal. */
+  setCloseCamera(on: boolean): void {
+    this.close = on;
+  }
+
+  /** Training targets: gold rings in the goal mouth, or a glowing zone on the grass. */
+  setTargets(targets: readonly { x: number; y: number; z: number; radius: number; flat: boolean }[]): void {
+    for (const m of this.targets) {
+      this.scene.remove(m);
+      m.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          o.geometry.dispose();
+          (o.material as THREE.Material).dispose();
+        }
+      });
+    }
+    this.targets = targets.map((t) => {
+      const g = new THREE.Group();
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(t.radius, t.flat ? 0.08 : 0.06, 8, 48),
+        new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.9 }),
+      );
+      g.add(ring);
+      if (t.flat) {
+        const fill = new THREE.Mesh(
+          new THREE.CircleGeometry(t.radius, 48),
+          new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.14, depthWrite: false }),
+        );
+        g.add(fill);
+        g.rotation.x = -Math.PI / 2;
+      } else {
+        g.rotation.y = Math.PI / 2; // facing down the pitch, in the plane of the goal mouth
+      }
+      g.position.set(t.x, t.y, t.z);
+      this.scene.add(g);
+      return g;
+    });
   }
 
   /** Online: players controlled by other people get a thin white ring. */
@@ -322,6 +364,9 @@ export class Renderer {
     const h = clamp((by - BALL.radius) / 6, 0, 1);
     this.ballShadow.scale.setScalar(1 - h * 0.5);
     (this.ballShadow.material as THREE.MeshBasicMaterial).opacity = 0.45 * (1 - h);
+
+    // Training targets gently pulse so they catch the eye.
+    for (const t of this.targets) t.scale.setScalar(1 + Math.sin(this.time * 4) * 0.04);
 
     this.updateTrail(w, frameDt);
     this.updateConfetti(frameDt);
@@ -837,9 +882,12 @@ export class Renderer {
     }
     this.penCam = null;
 
-    this.camX = lerp(this.camX, clamp(bx * 0.85, -11, 11), 1 - Math.exp(-3 * dt));
-    const height = portrait ? 36 : 21;
-    const back = portrait ? 28 : 25;
+    // Closer in training: lead toward the goal you're attacking so the targets stay in view.
+    const lead = this.close ? 3 : 0;
+    this.camX = lerp(this.camX, clamp(bx * 0.85 + lead, -11, this.close ? 13 : 11), 1 - Math.exp(-3 * dt));
+    const zoom = this.close ? 0.68 : 1;
+    const height = (portrait ? 36 : 21) * zoom;
+    const back = (portrait ? 28 : 25) * zoom;
     this.camera.position.set(this.camX + sx, height + sy, back + bz * 0.15);
     this.camera.lookAt(this.camX, 0, bz * 0.3 + 0.5);
   }

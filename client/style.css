@@ -1587,3 +1587,63 @@ html.touch,
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Training ------------------------------------------------------------------- */
+
+.training-bar {
+  display: none;
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: rgba(7, 11, 28, 0.8);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+#hud.training .training-bar {
+  display: block;
+}
+
+#hud.training .scoreboard {
+  display: none;
+}
+
+.drills {
+  display: grid;
+  gap: 8px;
+}
+
+.panel .drills button {
+  margin: 0;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 10px;
+}
+
+.drills button b {
+  font-size: 16px;
+}
+
+.drills button span {
+  grid-column: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.drills button em {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--accent);
+  text-align: right;
+}

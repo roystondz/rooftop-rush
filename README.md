@@ -72,6 +72,8 @@ Passes and tackles fill your **Rush** meter. When it's full, your next shot is a
 
 **Sound:** ♪ turns all sound on or off (or press M), ♫ turns the background music on or off. The music is generated live in the browser, so there are no audio files and nothing to license.
 
+**Training:** three drills of ten balls on an empty pitch, each with your best score saved. *Curl*: shoot from a spot outside the box past two defenders into a gold ring low in either corner; aim outside a defender and flick sideways as you let go to bend it in. *Power*: full-strength shots against a hard bot keeper, with each shot's speed shown. *Through balls*: your teammate runs past two defenders; time a through ball into the glowing zone ahead of them (too early is cut out, too late runs out). You can turn but not move until you strike the ball.
+
 **Game modes:** pick **Match** (3 minutes, 3v3) or **Penalties** on the menu; both work against bots and online. Quick match only pairs players who picked the same mode; a room code plays whatever its creator picked.
 
 **Penalties:** 5 kicks each, alternating, ending early once one side can't catch up, then sudden death. The camera moves behind the taker, looking at the goal, and the controls follow it (right on screen is always right). Taking: aim left/right (a yellow line shows where), hold shoot for power; steer sideways while charging to curl it. In goal: move left/right along the line, then tackle/DIVE dives the way you're pushing (no direction = spring up). Bot keepers shuffle along the line and lean toward where you're aiming (harder keepers read it better), then guess or react as you shoot. You'll score about 3 in 4 on Easy and 2 in 3 on Normal.
@@ -113,6 +115,8 @@ client/            Browser only.
   stats-view.ts    The "Your stats" screen.
   tournament.ts    Knockout tournament vs bots: draw, bracket, bot results, saving.
   tournament-view.ts  The bracket.
+  training.ts      Training drills (curl, power, through balls): setting up and judging each ball.
+  training-game.ts Runs a drill: ten balls, the HUD bar, best scores.
   renderer.ts      Three.js drawing: arena, city, players, ball, camera, effects.
   input.ts         Keyboard, gamepad and touch → Input.
   touch.ts         On-screen joystick and buttons for phones (multi-touch).
@@ -191,4 +195,6 @@ Then open http://localhost:3000.
 9. ~~Kit colours, invite links, crowd reactions~~ ✅
 10. ~~Install as an app (works offline vs bots), phone vibration, quick chat~~ ✅
 11. ~~Tournament: 8-team knockout vs bots, penalties after a draw, saved progress~~ ✅
-12. Accounts and leaderboard with Supabase.
+12. ~~Skill moves, headers, volleys and crosses~~ ✅
+13. ~~Training: curl, power and through-ball drills with best scores~~ ✅
+14. Accounts and leaderboard with Supabase.

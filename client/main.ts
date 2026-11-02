@@ -31,6 +31,8 @@ import {
   type Tournament,
 } from './tournament';
 import { renderBracket } from './tournament-view';
+import { ATTEMPTS, DRILL_INFO, DRILLS, loadBests, saveBests, type Drill } from './training';
+import { TrainingGame } from './training-game';
 import { TouchControls, type TouchMode } from './touch';
 import type { GameMode, Team } from '../shared/types';
 import { penaltyDuel } from '../shared/sim';
@@ -54,13 +56,15 @@ if (touch) {
 const haptics = new Haptics(touchDevice);
 effects.haptics = haptics;
 const game = new Game(renderer, hud, input, effects);
+const trainer = new TrainingGame(renderer, hud, input, effects);
 let online: OnlineGame | null = null;
-let mode: 'menu' | 'local' | 'online' = 'menu';
+let mode: 'menu' | 'local' | 'online' | 'training' = 'menu';
 let difficulty: Difficulty = 'normal';
 let gameMode: GameMode = 'match';
 const settings = loadSettings();
 haptics.enabled = settings.vibration;
-effects.controlled = () => (mode === 'local' ? game.controlledId : (online?.controlledId ?? -1));
+effects.controlled = () =>
+  mode === 'local' ? game.controlledId : mode === 'training' ? trainer.controlledId : (online?.controlledId ?? -1);
 let stats = loadStats();
 /** Who the current match is against, for your stats. */
 let opponent: Opponent = 'normal';
@@ -70,7 +74,7 @@ let names: [string, string] = [...DEFAULT_TEAM_NAMES];
 const lag = lagFromUrl();
 const debugNet = new URLSearchParams(location.search).has('debug');
 
-const screens = ['menu', 'online', 'lobby', 'pause', 'fulltime', 'stats', 'tournament'] as const;
+const screens = ['menu', 'online', 'lobby', 'pause', 'fulltime', 'stats', 'tournament', 'training'] as const;
 type Screen = (typeof screens)[number];
 function show(screen: Screen | null): void {
   for (const s of screens) $(s).classList.toggle('hidden', s !== screen);
@@ -90,6 +94,7 @@ function loop(now: number): void {
   const dt = lastFrame ? Math.min(0.1, (now - lastFrame) / 1000) : 0;
   lastFrame = now;
   if (mode === 'local') game.frame(dt);
+  else if (mode === 'training') trainer.frame(dt);
   else if (online) online.frame(dt);
   syncTouchControls();
   requestAnimationFrame(loop);
@@ -101,12 +106,14 @@ requestAnimationFrame(loop);
 /** On-screen controls appear only while a match is being played, not over menus. */
 function syncTouchControls(): void {
   const inMatch =
-    (mode === 'local' && game.world !== null) || (mode === 'online' && online?.started === true);
-  const menuOpen = ['pause', 'fulltime', 'lobby', 'online', 'menu', 'stats', 'tournament'].some((id) => !$(id).classList.contains('hidden'));
+    (mode === 'local' && game.world !== null) ||
+    (mode === 'online' && online?.started === true) ||
+    (mode === 'training' && trainer.world !== null);
+  const menuOpen = ['pause', 'fulltime', 'lobby', 'online', 'menu', 'stats', 'tournament', 'training'].some((id) => !$(id).classList.contains('hidden'));
   document.documentElement.classList.toggle('in-match', inMatch && !menuOpen);
   touch?.show(inMatch && !menuOpen);
   if (touch && inMatch) {
-    const w = mode === 'local' ? game.world : online?.world;
+    const w = mode === 'local' ? game.world : mode === 'training' ? trainer.world : online?.world;
     const myTeam: Team = mode === 'local' ? game.humanTeam : (online?.team ?? 0);
     if (w) touch.setMode(touchModeFor(w, myTeam, touch.mode));
   }
@@ -163,6 +170,7 @@ function playLocal(): void {
 function toMenu(): void {
   tourMatch = null; // quitting a tournament match: it can be played again
   game.stop();
+  trainer.stop();
   showTournamentButton();
   leaveOnline();
   hud.hide();
@@ -174,6 +182,9 @@ function setPaused(paused: boolean): void {
   if (mode === 'local') {
     if (!game.world || game.world.phase === 'fulltime') return;
     game.paused = paused;
+  } else if (mode === 'training') {
+    if (!trainer.world) return;
+    trainer.paused = paused;
   } else if (mode !== 'online' || !online?.started) {
     return;
   }
@@ -229,7 +240,7 @@ let tour: Tournament | null = loadTournament();
 /** The tournament match being played; `drawn` holds the score if it went to penalties. */
 let tourMatch: { round: number; opponent: number; level: Difficulty; drawn: [number, number] | null } | null = null;
 /** What the result screen's main button does. */
-let afterResult: 'again' | 'tournament' = 'again';
+let afterResult: 'again' | 'tournament' | 'training' = 'again';
 
 /** You, as you are now (name and kit may have changed since the tournament began). */
 const tournamentYou = () => ({ name: cleanTeamName(settings.teamName, DEFAULT_TEAM_NAMES[0]), kit: settings.kit });
@@ -352,6 +363,61 @@ $('tour-abandon').addEventListener('click', () => {
   showTournamentButton();
   show('menu');
 });
+
+// --- training -------------------------------------------------------------------------
+
+function openTraining(): void {
+  const bests = loadBests();
+  $('drills').replaceChildren(
+    ...DRILLS.map((d) => {
+      const btn = document.createElement('button');
+      const info = DRILL_INFO[d];
+      const title = document.createElement('b');
+      title.textContent = info.title;
+      const goal = document.createElement('span');
+      goal.textContent = info.goal;
+      const best = document.createElement('em');
+      best.textContent = bests[d] ? `Best ${bests[d]}/${ATTEMPTS}` : 'New';
+      btn.append(title, goal, best);
+      btn.addEventListener('click', () => startTraining(d));
+      return btn;
+    }),
+  );
+  show('training');
+}
+
+function startTraining(drill: Drill): void {
+  startAudio();
+  enterFullscreen();
+  leaveOnline();
+  game.stop();
+  mode = 'training';
+  show(null);
+  useTeams(teamNames(settings.teamName, undefined), teamKits(settings.kit, undefined));
+  trainer.start(drill);
+  hud.message(DRILL_INFO[drill].title.toUpperCase(), DRILL_INFO[drill].how, 3);
+}
+
+trainer.onFinish = (r) => {
+  const bests = loadBests();
+  const newBest = r.hits > bests[r.drill];
+  bests[r.drill] = Math.max(bests[r.drill], r.hits);
+  bests.fastest = Math.max(bests.fastest, r.fastest);
+  saveBests(bests);
+  const what = r.drill === 'curl' ? 'targets hit' : r.drill === 'power' ? 'goals' : 'perfect passes';
+  $('result-title').textContent = `${DRILL_INFO[r.drill].title}: ${r.hits} / ${ATTEMPTS}`;
+  $('result-score').textContent = r.drill === 'power' && r.fastest ? `${what} · fastest shot ${r.fastest} km/h` : what;
+  $('result-extra').textContent = newBest ? 'New best!' : `Best: ${bests[r.drill]} / ${ATTEMPTS}`;
+  $('again').textContent = 'Try again';
+  $('rematch-status').textContent = '';
+  afterResult = 'training';
+  lastDrill = r.drill;
+  show('fulltime');
+};
+let lastDrill: Drill = 'curl';
+
+$('training-btn').addEventListener('click', openTraining);
+$('training-back').addEventListener('click', () => show('menu'));
 
 // --- online play ------------------------------------------------------------------
 
@@ -501,7 +567,9 @@ $('invite-join').addEventListener('click', () => {
 });
 
 $('again').addEventListener('click', () => {
-  if (afterResult === 'tournament') {
+  if (afterResult === 'training') {
+    startTraining(lastDrill);
+  } else if (afterResult === 'tournament') {
     game.stop();
     mode = 'menu';
     openTournament();
@@ -677,12 +745,12 @@ window.addEventListener('keydown', (e) => {
 
 // A hidden tab stops drawing, so pause local games. Online matches keep running on the server.
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && mode === 'local') setPaused(true);
+  if (document.hidden && (mode === 'local' || mode === 'training')) setPaused(true);
 });
 
 if (import.meta.env.DEV) {
   // Handy for poking at the game from the browser console.
-  Object.assign(window, { __rr: { game, sfx, get online() { return online; }, get mode() { return mode; } } });
+  Object.assign(window, { __rr: { game, trainer, sfx, get online() { return online; }, get mode() { return mode; } } });
 }
 
 // --- lobby ---------------------------------------------------------------------------
