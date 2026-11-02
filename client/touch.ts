@@ -6,7 +6,7 @@ import { knobOffset, readStick, SPRINT_PUSH } from './joystick';
 
 const STICK_RADIUS = 56; // pixels
 
-export type Action = 'shoot' | 'pass' | 'through' | 'tackle' | 'switch' | 'press' | 'sprint';
+export type Action = 'shoot' | 'pass' | 'through' | 'tackle' | 'switch' | 'press' | 'sprint' | 'skill';
 type Slot = 'main' | 'second' | 'third' | 'fourth';
 export type TouchMode = 'attack' | 'defend' | 'penaltyTaker' | 'penaltyKeeper' | 'idle';
 
@@ -22,7 +22,8 @@ const LAYOUTS: Record<TouchMode, Partial<Record<Slot, ButtonJob>>> = {
     main: { action: 'shoot', label: 'SHOOT', hint: 'hold' },
     second: { action: 'pass', label: 'PASS' },
     third: { action: 'through', label: 'THROUGH' },
-    fourth: { action: 'sprint', label: 'SPRINT' },
+    // Sprinting is also pushing the stick to its edge, so this button can be the skill move.
+    fourth: { action: 'skill', label: 'SKILL', hint: 'pull back = turn' },
   },
   defend: {
     main: { action: 'tackle', label: 'TACKLE' },
@@ -48,6 +49,7 @@ export interface TouchState {
   pass: boolean; // tapped since the last read
   through: boolean;
   tackle: boolean;
+  skill: boolean;
   switchPlayer: boolean;
 }
 
@@ -143,6 +145,7 @@ export class TouchControls {
       pass: this.tapped.has('pass'),
       through: this.tapped.has('through'),
       tackle: this.tapped.has('tackle'),
+      skill: this.tapped.has('skill'),
       switchPlayer: this.tapped.has('switch'),
     };
     this.tapped.clear();

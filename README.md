@@ -38,7 +38,7 @@ npm run dev
 
 | Situation | Buttons |
 |---|---|
-| Your team has the ball | **SHOOT** (hold) · PASS · THROUGH · SPRINT |
+| Your team has the ball | **SHOOT** (hold) · PASS · THROUGH · SKILL |
 | The other team has it | **TACKLE** · SWITCH · PRESS (hold to chase) · SPRINT |
 | Penalties, your kick | **SHOOT** (aim with the stick first) |
 | Penalties, in goal | **DIVE** (the way the stick is pushed) |
@@ -49,15 +49,22 @@ Several fingers work at once. Landscape is recommended; the game suggests turnin
 | Action | Keyboard | Gamepad |
 |---|---|---|
 | Move | WASD / arrows | Left stick |
-| Sprint | Shift | RT / RB |
+| Sprint | Shift | RT |
 | Shoot (hold to charge) | J / Space | X |
 | Curl a shot | Steer sideways while charging | — |
 | Pass | K | A |
 | Through ball (into space ahead of a teammate) | I | Y |
 | Press: hold to chase the ball | E | LT |
 | Tackle (not from behind) | L | B |
+| Skill move: sidestep, or pull back to drag it back and turn | O | RB |
+| Head or volley a ball in the air (hold as a cross comes in) | J / Space | X |
+| Head it to a teammate | K | A |
 | Switch player (to the teammate with the **Q** badge) | Q | LB |
 | Pause / sound | Esc / M | Start |
+
+**Skill moves:** with the ball, SKILL (O / RB) does a quick sidestep the way you push (or away from the nearest defender), or, pulling the stick back, a drag-back that turns you round. For a moment afterwards tackles miss, and a defender who lunges at it is left off balance. Each one costs a little stamina and needs a second to recharge.
+
+**Headers, volleys and crosses:** a pass from out wide near goal to a teammate in the box is a **cross**, lofted to drop at head height. When the ball is at head height near you, SHOOT heads it where you're pointing (or hold SHOOT as it arrives) and PASS heads it to a teammate. A first-time shot on a ball in the air is a **volley**: flatter and quicker. Goals from them are announced as HEADER! and VOLLEY!
 
 Passes and tackles fill your **Rush** meter. When it's full, your next shot is a power shot.
 

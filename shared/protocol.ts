@@ -23,6 +23,9 @@ const SHOOT = 2;
 const PASS = 4;
 const TACKLE = 8;
 const THROUGH = 16;
+const SKILL = 32;
+/** Highest valid button bits value (all buttons at once). */
+export const MAX_BUTTONS = 63;
 
 const round = (v: number, places: number) => Math.round(v * 10 ** places) / 10 ** places;
 
@@ -32,7 +35,8 @@ export function packInput(i: Input): PackedInput {
     (i.shoot ? SHOOT : 0) |
     (i.pass ? PASS : 0) |
     (i.tackle ? TACKLE : 0) |
-    (i.through ? THROUGH : 0);
+    (i.through ? THROUGH : 0) |
+    (i.skill ? SKILL : 0);
   return [round(i.moveX, 2), round(i.moveZ, 2), buttons];
 }
 
@@ -46,6 +50,7 @@ export function unpackInput(p: PackedInput): Input {
     pass: (b & PASS) !== 0,
     tackle: (b & TACKLE) !== 0,
     through: (b & THROUGH) !== 0,
+    skill: (b & SKILL) !== 0,
   };
 }
 
@@ -75,12 +80,16 @@ const STUNNED = 1;
 const CHARGING = 2;
 const SPRINTING = 4;
 const DIVING = 8;
+const SKILLING = 16;
+const JUMPING = 32;
 
 export function makeSnapshot(w: World, controlled: readonly number[], events: MatchEvent[]): Snapshot {
   const p: number[] = [];
   for (const q of w.players) {
     const flags =
-      (q.stun > 0 ? STUNNED : 0) | (q.charging ? CHARGING : 0) | (q.sprinting ? SPRINTING : 0) | (q.dive > 0 ? DIVING : 0);
+      (q.stun > 0 ? STUNNED : 0) | (q.charging ? CHARGING : 0) | (q.sprinting ? SPRINTING : 0) | (q.dive > 0 ? DIVING : 0) |
+      (q.skillTimer > 0 ? SKILLING : 0) |
+      (q.jump > 0 ? JUMPING : 0);
     p.push(round(q.x, 3), round(q.z, 3), round(q.vx, 2), round(q.vz, 2), round(q.facing, 3), round(q.stamina, 2), round(q.charge, 2), flags);
   }
   const b = w.ball;
@@ -131,6 +140,8 @@ export function applySnapshot(w: World, s: Snapshot): void {
     q.charging = (flags & CHARGING) !== 0;
     q.sprinting = (flags & SPRINTING) !== 0;
     q.dive = flags & DIVING ? 0.1 : 0;
+    q.skillTimer = flags & SKILLING ? 0.1 : 0;
+    q.jump = flags & JUMPING ? 0.1 : 0;
   });
   const b = w.ball;
   [b.x, b.y, b.z, b.vx, b.vy, b.vz, b.owner] = s.b;
@@ -252,7 +263,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const i = msg.i;
       if (!isNum(msg.seq) || !Array.isArray(i) || i.length !== 3 || !i.every(isNum)) return null;
       const buttons = i[2] as number;
-      if (!Number.isInteger(buttons) || buttons < 0 || buttons > 31) return null;
+      if (!Number.isInteger(buttons) || buttons < 0 || buttons > MAX_BUTTONS) return null;
       return { t: 'input', seq: msg.seq, i: [i[0] as number, i[1] as number, buttons] };
     }
     default:

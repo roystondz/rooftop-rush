@@ -16,6 +16,9 @@ for (let m = 0; m < matches; m++) {
     for (const e of w.events) {
       totals[e.type] = (totals[e.type] ?? 0) + 1;
       if (e.type === 'shot' || e.type === 'powerShot') totals['shotsT' + e.team] = (totals['shotsT' + e.team] ?? 0) + 1;
+      // Headers and volleys (shots, passes and goals), e.g. "goal:header".
+      if (e.style) totals[`${e.type}:${e.style}`] = (totals[`${e.type}:${e.style}`] ?? 0) + 1;
+      if (e.type === 'pass' && w.ball.vy > 8) totals['pass:cross'] = (totals['pass:cross'] ?? 0) + 1;
     }
     ticks++;
     const b = w.ball;

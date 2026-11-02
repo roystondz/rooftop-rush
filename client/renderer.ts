@@ -45,6 +45,8 @@ interface PlayerView {
   elbowL: THREE.Group;
   elbowR: THREE.Group;
   stride: number;
+  /** Eased height of a header jump, so it rises and lands smoothly (online only a flag arrives). */
+  jumpY: number;
 }
 
 /** Height of the hip joints. Models face +x; z is left/right. */
@@ -250,6 +252,25 @@ export class Renderer {
       // The scoring team jumps. During the goal phase the ball sits in the net it went into.
       const celebrating = w.phase === 'goal' && p.team === (w.ball.x > 0 ? 0 : 1);
       v.root.position.y = celebrating ? Math.abs(Math.sin(this.time * 7 + i)) * 0.6 : 0;
+      // Header: jump up with the arms out for balance.
+      v.jumpY = lerp(v.jumpY, p.jump > 0 ? 0.5 : 0, 1 - Math.exp(-(p.jump > 0 ? 22 : 9) * Math.max(frameDt, 0.001)));
+      if (v.jumpY > 0.02) {
+        v.root.position.y += v.jumpY;
+        v.armL.rotation.x = -1.1;
+        v.armR.rotation.x = 1.1;
+        v.legL.rotation.z = v.legR.rotation.z = -0.25;
+      } else {
+        v.armL.rotation.x = v.armR.rotation.x = 0;
+      }
+      // Skill move: lean into the sidestep and swing a leg over the ball.
+      if (p.skillTimer > 0) {
+        const side = -p.vx * Math.sin(p.facing) + p.vz * Math.cos(p.facing);
+        v.root.rotation.x = clamp(side * 0.07, -0.45, 0.45);
+        v.legR.rotation.x = side > 0 ? 0.8 : 0;
+        v.legL.rotation.x = side > 0 ? 0 : -0.8;
+      } else {
+        v.legL.rotation.x = v.legR.rotation.x = 0;
+      }
       if (celebrating && w.mode === 'match') {
         // Arms up; the scorer runs to the corner first and only jumps once they stop.
         const wave = Math.sin(this.time * 9 + i) * 0.25;
@@ -709,6 +730,7 @@ export class Renderer {
       elbowL: armL.elbow,
       elbowR: armR.elbow,
       stride: 0,
+      jumpY: 0,
     };
   }
 

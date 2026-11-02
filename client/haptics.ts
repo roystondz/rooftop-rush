@@ -25,6 +25,7 @@ export const BUZZ = {
   shot: 12,
   powerShot: [30, 30, 40],
   tackle: 25,
+  skill: 10,
   post: 20,
   save: 30,
   goalFor: [50, 40, 50, 40, 140],

@@ -1,9 +1,9 @@
 // The whole match simulation. It never reads the clock, the keyboard or Math.random,
 // so the same inputs always give the same result. That is what lets a server run it later.
-import { BALL, DT, MATCH, PASS, PITCH, PLAYER, RUSH, SHOOTOUT, SHOT } from './constants';
-import { clamp, distToSegment, lerp, turnTowards } from './math';
+import { BALL, DT, MATCH, PASS, PITCH, PLAYER, RUSH, SHOOTOUT, SHOT, SKILL } from './constants';
+import { clamp, distToSegment, lerp, turnTowards, wrapAngle } from './math';
 import { NO_INPUT } from './types';
-import type { Ball, GameMode, Input, KickKind, MatchEvent, Player, Role, Team, World } from './types';
+import type { Ball, GameMode, Input, KickKind, KickStyle, MatchEvent, Player, Role, Team, World } from './types';
 
 const HALF_L = PITCH.length / 2;
 const HALF_W = PITCH.width / 2;
@@ -208,6 +208,10 @@ function makePlayer(id: number, team: Team, role: Role): Player {
     tackleCooldown: 0,
     stun: 0,
     dive: 0,
+    skillTimer: 0,
+    skillCooldown: 0,
+    jump: 0,
+    prevSkill: false,
     prevShoot: false,
     prevPass: false,
     prevThrough: false,
@@ -274,6 +278,9 @@ function endMatch(w: World): void {
 function updatePlayer(w: World, p: Player, inp: Input): void {
   p.kickCooldown = Math.max(0, p.kickCooldown - DT);
   p.tackleCooldown = Math.max(0, p.tackleCooldown - DT);
+  p.skillTimer = Math.max(0, p.skillTimer - DT);
+  p.skillCooldown = Math.max(0, p.skillCooldown - DT);
+  p.jump = Math.max(0, p.jump - DT);
 
   if (p.stun > 0) {
     p.stun = Math.max(0, p.stun - DT);
@@ -299,6 +306,20 @@ function updatePlayer(w: World, p: Player, inp: Input): void {
   }
 
   const { mx, mz } = moveWithInput(p, inp, hasBall);
+
+  if (hasBall && inp.skill && !p.prevSkill) skillMove(w, p, mx, mz);
+
+  // A ball at head height: pressing (or already holding) shoot heads it where you're pointing,
+  // pass heads it to a teammate.
+  const shootPressed = inp.shoot && !p.prevShoot;
+  const headPass = (inp.pass && !p.prevPass) || (!!inp.through && !p.prevThrough);
+  if ((shootPressed || p.charging || headPass) && canHead(w, p)) {
+    header(w, p, mx, mz, headPass && !shootPressed);
+    p.charging = false;
+    p.charge = 0;
+    rememberButtons(p, inp);
+    return;
+  }
 
   // Shoot: hold to charge, release to kick. Works on a loose ball too (first-time shot).
   if (inp.shoot) {
@@ -390,6 +411,7 @@ export function carriedBallPosition(p: Player): { x: number; z: number } {
 }
 
 function rememberButtons(p: Player, inp: Input): void {
+  p.prevSkill = !!inp.skill;
   p.prevShoot = inp.shoot;
   p.prevPass = inp.pass;
   p.prevThrough = !!inp.through;
@@ -453,7 +475,17 @@ function canHitFirstTime(w: World, p: Player): boolean {
 
 // --- actions ----------------------------------------------------------------
 
-function kickBall(w: World, p: Player, kind: KickKind, vx: number, vy: number, vz: number, spin: number, target = -1): void {
+function kickBall(
+  w: World,
+  p: Player,
+  kind: KickKind,
+  vx: number,
+  vy: number,
+  vz: number,
+  spin: number,
+  target = -1,
+  style?: KickStyle,
+): void {
   const b = w.ball;
   b.owner = -1;
   b.vx = vx;
@@ -462,7 +494,7 @@ function kickBall(w: World, p: Player, kind: KickKind, vx: number, vy: number, v
   b.spin = spin;
   b.y = Math.max(b.y, BALL.radius);
   b.lastTouch = p.id;
-  b.lastKick = { by: p.id, kind, target };
+  b.lastKick = style ? { by: p.id, kind, target, style } : { by: p.id, kind, target };
   b.power = false;
   p.kickCooldown = PLAYER.kickCooldown;
 }
@@ -470,15 +502,85 @@ function kickBall(w: World, p: Player, kind: KickKind, vx: number, vy: number, v
 function shoot(w: World, p: Player, lateral: number): void {
   const c = clamp(p.charge / PLAYER.maxCharge, 0, 1);
   const power = w.rush[p.team] >= RUSH.max;
-  const speed = lerp(SHOT.minSpeed, SHOT.maxSpeed, c) * (power ? SHOT.powerMultiplier : 1);
-  const lift = power ? SHOT.powerLift : lerp(SHOT.minLift, SHOT.maxLift, c * c);
+  // Striking a ball in the air (not at your feet) is a volley: flatter and a bit quicker.
+  const volley = w.ball.owner !== p.id && w.ball.y > SKILL.volleyMinHeight;
+  const speed = lerp(SHOT.minSpeed, SHOT.maxSpeed, c) * (power ? SHOT.powerMultiplier : 1) * (volley ? SKILL.volleySpeed : 1);
+  const lift = (power ? SHOT.powerLift : lerp(SHOT.minLift, SHOT.maxLift, c * c)) * (volley ? SKILL.volleyLift : 1);
   const spin = clamp(lateral, -1, 1) * SHOT.maxCurl * (power ? 0.3 : 0.35 + 0.65 * c);
-  kickBall(w, p, 'shot', Math.cos(p.facing) * speed, lift, Math.sin(p.facing) * speed, spin);
+  const style = volley ? 'volley' : undefined;
+  kickBall(w, p, 'shot', Math.cos(p.facing) * speed, lift, Math.sin(p.facing) * speed, spin, -1, style);
   if (power) {
     w.ball.power = true;
     w.rush[p.team] = 0;
   }
-  emit(w, { type: power ? 'powerShot' : 'shot', player: p.id, team: p.team, strength: c });
+  emit(w, { type: power ? 'powerShot' : 'shot', player: p.id, team: p.team, strength: c, ...(style && { style }) });
+}
+
+/** Can `p` head the ball right now? (Keepers in their box catch it instead.) */
+export function canHead(w: World, p: Player): boolean {
+  const b = w.ball;
+  if (b.owner >= 0 || p.kickCooldown > 0 || (p.role === 'keeper' && inOwnBox(p))) return false;
+  if (b.y < SKILL.headerMinHeight || b.y > SKILL.headerMaxHeight) return false;
+  return Math.hypot(b.x - p.x, b.z - p.z) < SKILL.headerReach;
+}
+
+/**
+ * A header: toward where the stick points (or where you face), or to a teammate. Headers keep the
+ * ball low: they come off the head and drop, so they bounce in front of the keeper.
+ */
+function header(w: World, p: Player, mx: number, mz: number, toMate: boolean): void {
+  p.jump = SKILL.jumpTime;
+  if (Math.hypot(mx, mz) > 0.3) p.facing = Math.atan2(mz, mx);
+  if (toMate) {
+    const mate = bestPassTarget(w, p, 1.5)?.player;
+    if (mate) {
+      const dx = mate.x + mate.vx * PASS.lead - p.x;
+      const dz = mate.z + mate.vz * PASS.lead - p.z;
+      p.facing = Math.atan2(dz, dx);
+    }
+    const s = SKILL.headerPassSpeed;
+    kickBall(w, p, 'pass', Math.cos(p.facing) * s, SKILL.headerLift, Math.sin(p.facing) * s, 0, mate?.id ?? -1, 'header');
+    emit(w, { type: 'pass', player: p.id, team: p.team, target: mate?.id ?? -1, style: 'header' });
+    return;
+  }
+  const s = SKILL.headerSpeed;
+  kickBall(w, p, 'shot', Math.cos(p.facing) * s, SKILL.headerLift, Math.sin(p.facing) * s, 0, -1, 'header');
+  emit(w, { type: 'shot', player: p.id, team: p.team, strength: 0.5, style: 'header' });
+}
+
+/**
+ * Skill move with the ball: pulling back on the stick drags the ball back and turns you round;
+ * otherwise it's a step-over, a quick sidestep (the way you push, or away from the nearest
+ * opponent). For a moment afterwards tackles miss.
+ */
+function skillMove(w: World, p: Player, mx: number, mz: number): void {
+  if (p.skillCooldown > 0 || p.stamina < SKILL.staminaCost) return;
+  const fx = Math.cos(p.facing);
+  const fz = Math.sin(p.facing);
+  const forward = mx * fx + mz * fz;
+  if (forward < -0.5) {
+    p.facing = wrapAngle(p.facing + Math.PI);
+    p.vx = -fx * SKILL.dragBackSpeed;
+    p.vz = -fz * SKILL.dragBackSpeed;
+  } else {
+    let side = mx * -fz + mz * fx; // + is to the player's left of travel
+    if (Math.abs(side) < 0.3) {
+      // Not pushing sideways: step away from the nearest opponent.
+      let nearest: Player | undefined;
+      for (const o of w.players) {
+        if (o.team === p.team) continue;
+        if (!nearest || Math.hypot(o.x - p.x, o.z - p.z) < Math.hypot(nearest.x - p.x, nearest.z - p.z)) nearest = o;
+      }
+      side = nearest ? -Math.sign((nearest.x - p.x) * -fz + (nearest.z - p.z) * fx) || 1 : 1;
+    }
+    const s = Math.sign(side) * SKILL.sidestepSpeed;
+    p.vx += -fz * s;
+    p.vz += fx * s;
+  }
+  p.skillTimer = SKILL.evadeTime;
+  p.skillCooldown = SKILL.cooldown;
+  p.stamina -= SKILL.staminaCost;
+  emit(w, { type: 'skill', player: p.id, team: p.team });
 }
 
 /** `through`: play it into the space ahead of the teammate, for them to run onto. */
@@ -502,6 +604,18 @@ function pass(w: World, p: Player, through = false): void {
   const dx = tx - p.x;
   const dz = tz - p.z;
   const dist = Math.max(0.01, Math.hypot(dx, dz));
+  if (isCross(p, mate, dist)) {
+    // A cross: lofted from out wide to drop at head height on a teammate in the box.
+    const lead = SKILL.crossFlight;
+    const cx = clamp(mate.x + mate.vx * lead, -HALF_L + 1, HALF_L - 1) - p.x;
+    const cz = clamp(mate.z + mate.vz * lead, -HALF_W + 1, HALF_W - 1) - p.z;
+    const cd = Math.max(0.01, Math.hypot(cx, cz));
+    const speed = Math.min(SKILL.crossMaxSpeed, cd / SKILL.crossFlight);
+    p.facing = Math.atan2(cz, cx);
+    kickBall(w, p, 'pass', (cx / cd) * speed, SKILL.crossLift, (cz / cd) * speed, 0, mate.id);
+    emit(w, { type: 'pass', player: p.id, team: p.team, target: mate.id });
+    return;
+  }
   const lofted = dist > PASS.loftDistance;
   const speed =
     clamp(PASS.minSpeed + dist * PASS.speedPerMeter, PASS.minSpeed, PASS.maxSpeed) *
@@ -510,6 +624,14 @@ function pass(w: World, p: Player, through = false): void {
   p.facing = Math.atan2(dz, dx);
   kickBall(w, p, 'pass', (dx / dist) * speed, lofted ? PASS.loftLift : PASS.lift, (dz / dist) * speed, 0, mate.id);
   emit(w, { type: 'pass', player: p.id, team: p.team, target: mate.id });
+}
+
+/** A pass from out wide in the attacking third to a teammate in the box goes in the air. */
+function isCross(p: Player, mate: Player, dist: number): boolean {
+  const dir = attackDir(p.team);
+  const wide = Math.abs(p.z) > PITCH.boxHalfWidth - 0.5 && p.x * dir > HALF_L - 14;
+  const mateInBox = mate.x * dir > HALF_L - PITCH.boxDepth - 1 && Math.abs(mate.z) < PITCH.boxHalfWidth;
+  return wide && mateInBox && dist > SKILL.crossMinDistance;
 }
 
 function tackle(w: World, p: Player): void {
@@ -521,6 +643,11 @@ function tackle(w: World, p: Player): void {
 
   if (b.owner >= 0) {
     const victim = w.players[b.owner];
+    if (victim.team !== p.team && victim.skillTimer > 0 && d < PLAYER.tackleRange + 0.5) {
+      // Lunged at a skill move: beaten, and off balance for a moment.
+      p.stun = SKILL.beatenStun;
+      return;
+    }
     if (victim.team !== p.team && d < PLAYER.tackleRange && !isBehind(p, victim)) {
       victim.stun = PLAYER.stunTime;
       victim.charging = false;
@@ -742,11 +869,13 @@ function checkGoal(w: World): void {
     p.charging = false;
     p.charge = 0;
   }
+  const style = b.lastKick.by === scorer ? b.lastKick.style : undefined;
   emit(w, {
     type: 'goal',
     team,
     player: scorer,
     ownGoal: scorer >= 0 && w.players[scorer].team !== team,
+    ...(style && { style }),
   });
 }
 

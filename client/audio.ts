@@ -60,6 +60,17 @@ export class Sfx {
     this.thump(220, 0.08, 0.35);
   }
 
+  /** A header: a duller, softer thud than a kick. */
+  header(): void {
+    this.thump(95, 0.1, 0.45);
+    this.burst(0.06, 900, 0.18);
+  }
+
+  /** A skill move: a quick whoosh of the boot over the ball. */
+  skill(): void {
+    this.filteredNoise(0.22, 2400, 900, 0.12, 0.04);
+  }
+
   bounce(strength = 0.5): void {
     this.thump(110, 0.08, Math.min(0.5, strength * 0.08));
   }

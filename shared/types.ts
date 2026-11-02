@@ -14,6 +14,8 @@ export interface Input {
   /** Through ball: a pass into the space ahead of a teammate. Optional so older code can leave it out. */
   through?: boolean;
   tackle: boolean;
+  /** Skill move with the ball: a sidestep, or a drag-back when pulling the stick backwards. */
+  skill?: boolean;
 }
 
 export const NO_INPUT: Readonly<Input> = Object.freeze({
@@ -44,6 +46,12 @@ export interface Player {
   stun: number;
   /** Seconds left of a goalkeeper's dive (penalties). */
   dive: number;
+  /** Seconds left of a skill move; tackles miss while it lasts. */
+  skillTimer: number;
+  skillCooldown: number;
+  /** Seconds left of a jump for a header (for drawing). */
+  jump: number;
+  prevSkill: boolean;
   prevShoot: boolean;
   prevPass: boolean;
   prevThrough: boolean;
@@ -51,6 +59,8 @@ export interface Player {
 }
 
 export type KickKind = 'none' | 'shot' | 'pass';
+/** How a ball in the air was struck. */
+export type KickStyle = 'header' | 'volley';
 
 export interface Ball {
   x: number;
@@ -62,7 +72,7 @@ export interface Ball {
   spin: number; // positive curls toward +z relative to travel
   owner: number; // player id, or -1 when loose
   lastTouch: number;
-  lastKick: { by: number; kind: KickKind; target: number };
+  lastKick: { by: number; kind: KickKind; target: number; style?: KickStyle };
   power: boolean; // true while a Rush power shot is in flight
 }
 
@@ -78,6 +88,7 @@ export type MatchEventType =
   | 'received'
   | 'save'
   | 'tackle'
+  | 'skill'
   | 'bounce'
   | 'wall'
   | 'post'
@@ -94,6 +105,8 @@ export interface MatchEvent {
   target?: number;
   strength?: number;
   ownGoal?: boolean;
+  /** Shots, passes and goals that came from a header or a volley. */
+  style?: KickStyle;
 }
 
 /** Penalty shootout progress. */

@@ -1,7 +1,7 @@
 // Bots press the same "buttons" a human does: they only ever return an Input.
-import { DT, PITCH, PLAYER } from './constants';
+import { BALL, DT, PITCH, PLAYER } from './constants';
 import { clamp, lerp, mulberry32, wrapAngle } from './math';
-import { attackDir, bestPassTarget, isBehind, ownGoalX, penaltyDuel } from './sim';
+import { attackDir, bestPassTarget, canHead, isBehind, ownGoalX, penaltyDuel } from './sim';
 import type { Input, Player, World } from './types';
 
 export interface BotSkill {
@@ -11,12 +11,15 @@ export interface BotSkill {
   tackleChance: number; // chance per tick of tackling when close enough
   passPatience: number; // ticks of dribbling before looking for a pass
   keeperFocus: number; // 0..1, how well the keeper tracks shots
+  headerChance: number; // chance per tick of going for a header when the ball is there
+  skillChance: number; // chance of trying a skill move when a defender closes in (decided once each time)
+  crossChance: number; // chance per tick of crossing from out wide when a teammate is in the box
 }
 
 export const BOT_SKILLS = {
-  easy: { speedScale: 0.88, shootRange: 11, aimError: 1.8, tackleChance: 0.015, passPatience: 160, keeperFocus: 0.55 },
-  normal: { speedScale: 0.97, shootRange: 13, aimError: 1.0, tackleChance: 0.035, passPatience: 110, keeperFocus: 0.9 },
-  hard: { speedScale: 1.04, shootRange: 15, aimError: 0.5, tackleChance: 0.08, passPatience: 75, keeperFocus: 0.95 },
+  easy: { speedScale: 0.88, shootRange: 11, aimError: 1.8, tackleChance: 0.015, passPatience: 160, keeperFocus: 0.55, headerChance: 0.25, skillChance: 0.15, crossChance: 0.02 },
+  normal: { speedScale: 0.97, shootRange: 13, aimError: 1.0, tackleChance: 0.035, passPatience: 110, keeperFocus: 0.9, headerChance: 0.5, skillChance: 0.3, crossChance: 0.04 },
+  hard: { speedScale: 1.04, shootRange: 15, aimError: 0.5, tackleChance: 0.08, passPatience: 75, keeperFocus: 0.95, headerChance: 0.8, skillChance: 0.45, crossChance: 0.06 },
 } satisfies Record<string, BotSkill>;
 
 export type Difficulty = keyof typeof BOT_SKILLS;
@@ -31,6 +34,10 @@ export class Bot {
   private possessionTicks = 0;
   private lastPass = false;
   private lastTackle = false;
+  private lastSkill = false;
+  /** Whether we've already decided about a skill move against the defender closing in now. */
+  private challenged = false;
+  private lastShootTap = false;
   /** Penalty plans, decided once per kick. */
   private pen: {
     aimZ: number;
@@ -84,6 +91,13 @@ export class Bot {
         return this.finish(out);
       }
       this.shootTicks = 0;
+    }
+
+    // Defending in your own half, bots are less sure-headed, so crosses are worth trying.
+    const headerChance = this.skill.headerChance * (p.x * attackDir(p.team) < 0 ? 0.4 : 1);
+    if (canHead(w, p) && this.rng() < headerChance) {
+      this.header(p, out);
+      return this.finish(out);
     }
 
     if (p.role === 'keeper') this.keeper(w, p, out);
@@ -176,9 +190,34 @@ export class Bot {
     // Buttons only count when newly pressed, so never hold pass/tackle for two ticks.
     if (out.pass && this.lastPass) out.pass = false;
     if (out.tackle && this.lastTackle) out.tackle = false;
+    if (out.skill && this.lastSkill) out.skill = false;
     this.lastPass = out.pass;
     this.lastTackle = out.tackle;
+    this.lastSkill = !!out.skill;
     return out;
+  }
+
+  /**
+   * The ball is at head height: in the attacking half, head it at goal (aiming for a corner);
+   * further back, head it clear, up the pitch.
+   */
+  private header(p: Player, out: Input): void {
+    const dir = attackDir(p.team);
+    const goalX = dir * HALF_L;
+    if (p.x * dir > 0) {
+      const aimZ = (p.z >= 0 ? -1 : 1) * (GOAL_HALF - 1) + (this.rng() - 0.5) * 2 * this.skill.aimError;
+      const dx = goalX - p.x;
+      const dz = aimZ - p.z;
+      const d = Math.hypot(dx, dz);
+      out.moveX = dx / d;
+      out.moveZ = dz / d;
+    } else {
+      out.moveX = dir;
+      out.moveZ = p.z >= 0 ? 0.4 : -0.4; // away from the middle of your own goal
+    }
+    // A fresh press each time (holding shoot would only work once).
+    out.shoot = !this.lastShootTap;
+    this.lastShootTap = out.shoot;
   }
 
   private withBall(w: World, p: Player, out: Input): void {
@@ -210,6 +249,18 @@ export class Bot {
       return;
     }
 
+    // Out wide near goal with a teammate in the box: cross it in for a header.
+    const wide = Math.abs(p.z) > PITCH.boxHalfWidth - 0.5 && p.x * dir > HALF_L - 14;
+    if (wide && this.rng() < this.skill.crossChance) {
+      const inBox = w.players.some(
+        (q) => q.team === p.team && q.id !== p.id && q.x * dir > HALF_L - PITCH.boxDepth - 1 && Math.abs(q.z) < PITCH.boxHalfWidth,
+      );
+      if (inBox) {
+        out.pass = true;
+        return;
+      }
+    }
+
     if (oppDist < 2.4 || this.possessionTicks > this.skill.passPatience) {
       const choice = bestPassTarget(w, p, 0.3);
       if (choice && choice.score > 1) {
@@ -227,12 +278,27 @@ export class Bot {
     }
     steer(out, p, tx, clamp(tz, -HALF_W + 1.5, HALF_W - 1.5), 0.1);
     out.sprint = oppDist > 3 && p.stamina > 0.4;
+    // A defender closing in from the front: sometimes try a step-over to get past (decided once).
+    const closing = !!opp && oppDist < 2.2 && (opp.x - p.x) * dir > 0;
+    if (closing && !this.challenged) {
+      this.challenged = true;
+      if (p.skillCooldown <= 0 && this.rng() < this.skill.skillChance) out.skill = true;
+    }
+    if (oppDist > 3.5) this.challenged = false;
   }
 
   private withoutBall(w: World, p: Player, out: Input, humanIds: ReadonlySet<number>): void {
     const b = w.ball;
     const dir = attackDir(p.team);
     const owner = b.owner >= 0 ? w.players[b.owner] : undefined;
+
+    if (!owner && b.lastKick.kind === 'pass' && b.lastKick.target === p.id && b.y > 1) {
+      // A ball in the air meant for me (a cross): get under it, where it comes down to head height.
+      const spot = headHeightSpot(b);
+      steer(out, p, spot.x, spot.z, 0.2);
+      out.sprint = p.stamina > 0.2;
+      return;
+    }
 
     if (owner && owner.team === p.team) {
       // Support the teammate on the ball: get ahead and into a passing lane.
@@ -311,6 +377,15 @@ export class Bot {
     }
     steer(out, p, tx, tz, 0.6);
   }
+}
+
+/** Where a ball in the air will be when it drops to about head height (ignores drag and curl). */
+function headHeightSpot(b: World['ball']): { x: number; z: number } {
+  const target = 1.7;
+  const g = BALL.gravity;
+  const disc = b.vy * b.vy + 2 * g * (b.y - target);
+  const t = disc > 0 ? (b.vy + Math.sqrt(disc)) / g : 0;
+  return { x: b.x + b.vx * t, z: b.z + b.vz * t };
 }
 
 function steer(out: Input, p: Player, tx: number, tz: number, arrive: number): void {

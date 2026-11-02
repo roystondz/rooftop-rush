@@ -356,6 +356,7 @@ export class Room {
           pass: next.input.pass || skipped.pass,
           tackle: next.input.tackle || skipped.tackle,
           through: next.input.through || skipped.through,
+          skill: next.input.skill || skipped.skill,
         };
       }
       if (next) {
@@ -364,7 +365,7 @@ export class Room {
         inputBySeat.set(seat.seat, next.input);
       } else {
         // Nothing arrived in time: keep moving the same way, but don't repeat button taps.
-        inputBySeat.set(seat.seat, { ...seat.last, pass: false, tackle: false, through: false });
+        inputBySeat.set(seat.seat, { ...seat.last, pass: false, tackle: false, through: false, skill: false });
       }
     }
 

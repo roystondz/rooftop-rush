@@ -67,6 +67,33 @@ export const SHOT = {
   powerLift: 1.6,
 } as const;
 
+/** Skill moves, headers, volleys and crosses. */
+export const SKILL = {
+  evadeTime: 0.35, // seconds a skill move makes tackles miss
+  cooldown: 1.3,
+  staminaCost: 0.12,
+  sidestepSpeed: 6.5, // sideways burst of a step-over
+  dragBackSpeed: 3.5, // backwards burst of a drag-back
+  beatenStun: 0.6, // a defender who lunges at a skill move is left off balance this long
+
+  headerMinHeight: 1.15, // the ball's height (metres) a player can head…
+  headerMaxHeight: 2.6, // …up to this, with a jump
+  headerReach: 1.25, // how close (sideways) the ball must be to head it
+  headerSpeed: 17,
+  headerPassSpeed: 12,
+  headerLift: 0.4, // headers are aimed down: they bounce in front of the keeper
+  jumpTime: 0.35,
+
+  volleyMinHeight: 0.55, // a first-time shot on a ball above this is a volley…
+  volleySpeed: 1.1, // …a little faster…
+  volleyLift: 0.45, // …and much flatter than a normal shot
+
+  crossLift: 9, // a cross is lofted to reach head height…
+  crossFlight: 0.6, // …arriving about this many seconds later
+  crossMaxSpeed: 24,
+  crossMinDistance: 6,
+} as const;
+
 export const PASS = {
   minSpeed: 8,
   maxSpeed: 21,

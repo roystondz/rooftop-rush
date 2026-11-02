@@ -19,6 +19,7 @@ const KEYS = {
   through: ['KeyI'],
   press: ['KeyE'],
   tackle: ['KeyL'],
+  skill: ['KeyO'],
   switchPlayer: ['KeyQ'],
 } as const;
 
@@ -61,6 +62,7 @@ export class InputManager {
     let through = tapped('through');
     let press = held('press');
     let tackle = tapped('tackle');
+    let skill = tapped('skill');
     let switchPlayer = tapped('switchPlayer');
 
     const pad = firstGamepad();
@@ -72,7 +74,8 @@ export class InputManager {
         moveZ = az;
       }
       const btn = (i: number) => pad.buttons[i]?.pressed ?? false;
-      sprint ||= btn(7) || btn(5);
+      sprint ||= btn(7);
+      skill ||= this.padEdge(5, btn(5));
       shoot ||= btn(2);
       pass ||= this.padEdge(0, btn(0));
       through ||= this.padEdge(3, btn(3));
@@ -93,11 +96,12 @@ export class InputManager {
       through ||= t.through;
       press ||= t.press;
       tackle ||= t.tackle;
+      skill ||= t.skill;
       switchPlayer ||= t.switchPlayer;
     }
 
     this.pressed.clear();
-    return { game: { moveX, moveZ, sprint, shoot, pass, tackle, through }, switchPlayer, press };
+    return { game: { moveX, moveZ, sprint, shoot, pass, tackle, through, skill }, switchPlayer, press };
   }
 
   private padPrev = new Map<number, boolean>();

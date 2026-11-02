@@ -112,6 +112,9 @@ export class Effects {
       case 'tackle':
         if (mine) h.buzz(BUZZ.tackle);
         break;
+      case 'skill':
+        if (mine) h.buzz(BUZZ.skill);
+        break;
       case 'save':
         if (mine) h.buzz(BUZZ.save);
         break;
@@ -134,15 +137,20 @@ export class Effects {
         this.sfx.whistle(w.phase === 'fulltime');
         break;
       case 'shot':
-        this.sfx.kick(e.strength ?? 0.5);
+        if (e.style === 'header') this.sfx.header();
+        else this.sfx.kick(e.strength ?? 0.5);
         this.renderer.addShake(0.15 * (e.strength ?? 0.5));
+        break;
+      case 'skill':
+        this.sfx.skill();
         break;
       case 'powerShot':
         this.sfx.powerKick();
         this.renderer.addShake(0.6);
         break;
       case 'pass':
-        this.sfx.pass();
+        if (e.style === 'header') this.sfx.header();
+        else this.sfx.pass();
         break;
       case 'save':
         this.sfx.crowdSwell(0.8);
@@ -169,7 +177,8 @@ export class Effects {
         this.renderer.goalBurst(team, w.ball.x);
         const color = kitCss(this.kits[team]);
         const sub = `${this.names[team]} · ${w.score[0]} – ${w.score[1]}`;
-        if (w.mode === 'match') this.hud.goal(e.ownGoal ? 'OWN GOAL' : 'GOAL!', sub, color);
+        const title = e.ownGoal ? 'OWN GOAL' : e.style === 'header' ? 'HEADER!' : e.style === 'volley' ? 'VOLLEY!' : 'GOAL!';
+        if (w.mode === 'match') this.hud.goal(title, sub, color);
         else this.hud.message('GOAL!', sub, 2.4);
         break;
       }
