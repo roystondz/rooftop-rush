@@ -34,13 +34,24 @@ export function takeSnapshot(w: World, into?: Snapshot): Snapshot {
 
 interface PlayerView {
   root: THREE.Group;
-  body: THREE.Mesh;
+  /** Everything above the hips; bobs up and down while running. */
+  body: THREE.Group;
   legL: THREE.Group;
   legR: THREE.Group;
+  kneeL: THREE.Group;
+  kneeR: THREE.Group;
   armL: THREE.Group;
   armR: THREE.Group;
+  elbowL: THREE.Group;
+  elbowR: THREE.Group;
   stride: number;
 }
+
+/** Height of the hip joints. Models face +x; z is left/right. */
+const HIP_Y = 0.92;
+const SHIRT_NUMBERS = { keeper: 1, midfielder: 8, attacker: 10 } as const;
+const SKIN_TONES = [0xe0b089, 0x8d5a3b, 0xc68863, 0xf1c9a5, 0x6b4029, 0xd9a066];
+const HAIR_COLORS = [0x2b1d14, 0x0d0d0d, 0x5a3a1a, 0xc9a26b, 0x1a1a1a, 0x7a4a24];
 
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -103,7 +114,7 @@ export class Renderer {
   setupPlayers(w: World): void {
     for (const v of this.playerViews) this.scene.remove(v.root);
     this.playerViews = w.players.map((p) =>
-      this.makePlayer(p.role === 'keeper' ? KEEPER_COLORS[p.team] : TEAM_COLORS[p.team], p.team),
+      this.makePlayer(p.role === 'keeper' ? KEEPER_COLORS[p.team] : TEAM_COLORS[p.team], p.team, p.id, SHIRT_NUMBERS[p.role]),
     );
     for (const v of this.playerViews) this.scene.add(v.root);
     this.camX = 0;
@@ -192,14 +203,22 @@ export class Renderer {
       const swing = Math.sin(v.stride) * 0.9 * run;
       v.legL.rotation.z = swing;
       v.legR.rotation.z = -swing;
+      // Knees bend most as each leg swings back through; a little bend even when standing.
+      v.kneeL.rotation.z = -0.1 - run * (0.2 + 1.1 * Math.max(0, -Math.cos(v.stride)));
+      v.kneeR.rotation.z = -0.1 - run * (0.2 + 1.1 * Math.max(0, Math.cos(v.stride)));
       v.armL.rotation.z = -swing * 0.8;
       v.armR.rotation.z = swing * 0.8;
-      v.body.position.y = 1.08 + Math.abs(Math.sin(v.stride)) * 0.06 * run;
+      v.elbowL.rotation.z = 0.25 + run * 1.1;
+      v.elbowR.rotation.z = 0.25 + run * 1.1;
+      v.body.position.y = HIP_Y + Math.abs(Math.sin(v.stride)) * 0.05 * run;
       v.root.rotation.z = p.stun > 0 ? -0.5 : -0.12 * run; // lean into the run, wobble when stunned
       if (p.dive > 0 || (w.mode === 'penalties' && p.role === 'keeper' && p.stun > 0)) {
         // Keeper diving (or lying after a dive): lay the body over sideways.
         v.root.rotation.x = Math.sign(p.vz || 1) * -1.2;
         v.root.position.y = 0.35;
+        // Arms stretched out toward the ball.
+        v.armL.rotation.z = v.armR.rotation.z = 2.9;
+        v.elbowL.rotation.z = v.elbowR.rotation.z = 0;
       } else {
         v.root.rotation.x = 0;
       }
@@ -212,6 +231,7 @@ export class Renderer {
         const wave = Math.sin(this.time * 9 + i) * 0.25;
         v.armL.rotation.z = 2.7 + wave;
         v.armR.rotation.z = 2.7 - wave;
+        v.elbowL.rotation.z = v.elbowR.rotation.z = 0.15;
         if (run > 0.3) v.root.position.y = 0;
       }
     });
@@ -578,40 +598,92 @@ export class Renderer {
     this.scene.add(this.confetti);
   }
 
-  private makePlayer(color: number, team: 0 | 1): PlayerView {
+  /**
+   * A low-poly footballer: boots, socks, shorts, a tapered shirt with a number on the back,
+   * jointed arms and legs, and a head with hair and eyes. Skin and hair vary from player to player.
+   */
+  private makePlayer(color: number, team: 0 | 1, id: number, number: number): PlayerView {
     const root = new THREE.Group();
-    const shirt = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
-    const shorts = new THREE.MeshStandardMaterial({ color: team === 0 ? 0x0e2a4a : 0x3b0d2c, roughness: 0.7 });
-    const skin = new THREE.MeshStandardMaterial({ color: 0xe0b089, roughness: 0.8 });
+    root.scale.setScalar(1.12); // a touch larger than life, so players read well from the match camera
+    const mat = (c: number, roughness = 0.7) => new THREE.MeshStandardMaterial({ color: c, roughness });
+    const shirt = mat(color, 0.6);
+    const shorts = mat(team === 0 ? 0x0e2a4a : 0x3b0d2c);
+    const socks = mat(color, 0.8);
+    const skin = mat(SKIN_TONES[id % SKIN_TONES.length], 0.8);
+    const hair = mat(HAIR_COLORS[(id * 5 + 1) % HAIR_COLORS.length], 0.9); // paired so hair stands out from skin
+    const boot = mat(0x16161c, 0.5);
+    const keeper = number === 1;
+    const hands = keeper ? mat(0xf4f4f5, 0.6) : skin;
 
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.5, 4, 12), shirt);
-    body.position.y = 1.08;
-    body.castShadow = true;
-    root.add(body);
-
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), skin);
-    head.position.set(0, 0.55, 0);
-    head.castShadow = true;
-    body.add(head);
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.3), new THREE.MeshStandardMaterial({ color: 0x111122 }));
-    visor.position.set(0.19, 0.04, 0);
-    head.add(visor);
-
-    const limb = (len: number, thick: number, mat: THREE.Material, x: number, y: number, z: number) => {
-      const pivot = new THREE.Group();
-      pivot.position.set(x, y, z);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(thick, len, thick), mat);
-      m.position.y = -len / 2;
-      m.castShadow = true;
-      pivot.add(m);
-      root.add(pivot);
-      return pivot;
+    const g = playerGeometry();
+    // Phones: only the big parts cast shadows, to keep the shadow pass cheap.
+    const bigParts: THREE.BufferGeometry[] = [g.torso, g.pelvis, g.thigh, g.shin, g.head];
+    const part = (geo: THREE.BufferGeometry, m: THREE.Material, parent: THREE.Object3D, x = 0, y = 0, z = 0) => {
+      const mesh = new THREE.Mesh(geo, m);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = !this.lowPower || bigParts.includes(geo);
+      parent.add(mesh);
+      return mesh;
     };
-    const legL = limb(0.72, 0.17, shorts, 0, 0.75, -0.14);
-    const legR = limb(0.72, 0.17, shorts, 0, 0.75, 0.14);
-    const armL = limb(0.55, 0.12, shirt, 0, 1.45, -0.42);
-    const armR = limb(0.55, 0.12, shirt, 0, 1.45, 0.42);
-    return { root, body, legL, legR, armL, armR, stride: 0 };
+    const joint = (parent: THREE.Object3D, x: number, y: number, z: number) => {
+      const g = new THREE.Group();
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    };
+
+    // Legs: shorts over the top of the thigh, knee, shin (sock), boot pointing forward.
+    const leg = (side: number) => {
+      const hip = joint(root, 0, HIP_Y, side * 0.11);
+      part(g.shortsLeg, shorts, hip, 0, -0.1, 0);
+      part(g.thigh, skin, hip, 0, -0.2, 0);
+      const knee = joint(hip, 0, -0.42, 0);
+      part(g.shin, socks, knee, 0, -0.2, 0);
+      part(g.boot, boot, knee, 0.05, -0.455, 0);
+      return { hip, knee };
+    };
+    const left = leg(-1);
+    const right = leg(1);
+
+    // Body: hips in shorts, a shirt wider at the shoulders, neck and head.
+    const body = joint(root, 0, HIP_Y, 0);
+    part(g.pelvis, shorts, body, 0, 0.06, 0);
+    part(g.torso, shirt, body, 0, 0.38, 0);
+    part(g.neck, skin, body, 0, 0.68, 0);
+    const head = part(g.head, skin, body, 0.01, 0.82, 0);
+    const hairCap = part(g.hair, hair, head, -0.015, 0.025, 0);
+    hairCap.castShadow = false;
+    for (const side of [-1, 1]) part(g.eye, boot, head, 0.115, 0.02, side * 0.045).castShadow = false;
+    const back = new THREE.Mesh(g.number, numberMaterial(number));
+    back.position.set(-0.148, 0.42, 0);
+    back.rotation.y = -Math.PI / 2;
+    body.add(back);
+
+    // Arms: short sleeve, elbow, forearm and hand (gloves for keepers).
+    const arm = (side: number) => {
+      const shoulder = joint(body, 0, 0.6, side * 0.255);
+      part(g.upperArm, shirt, shoulder, 0, -0.11, 0);
+      const elbow = joint(shoulder, 0, -0.28, 0);
+      part(g.forearm, skin, elbow, 0, -0.12, 0);
+      part(keeper ? g.glove : g.hand, hands, elbow, 0, -0.27, 0);
+      return { shoulder, elbow };
+    };
+    const armL = arm(-1);
+    const armR = arm(1);
+
+    return {
+      root,
+      body,
+      legL: left.hip,
+      legR: right.hip,
+      kneeL: left.knee,
+      kneeR: right.knee,
+      armL: armL.shoulder,
+      armR: armR.shoulder,
+      elbowL: armL.elbow,
+      elbowR: armR.elbow,
+      stride: 0,
+    };
   }
 
   // --- per-frame effects --------------------------------------------------------
@@ -723,6 +795,65 @@ export class Renderer {
     this.camera.position.set(this.camX + sx, height + sy, back + bz * 0.15);
     this.camera.lookAt(this.camX, 0, bz * 0.3 + 0.5);
   }
+}
+
+// --- player parts ---------------------------------------------------------------
+
+let sharedPlayerGeometry: ReturnType<typeof buildPlayerGeometry> | null = null;
+
+/** Shapes shared by every player model (only colours differ), built once. */
+function playerGeometry() {
+  return (sharedPlayerGeometry ??= buildPlayerGeometry());
+}
+
+function buildPlayerGeometry() {
+  // Rounded at the shoulders, flatter front to back than side to side.
+  const torso = new THREE.CapsuleGeometry(0.2, 0.32, 6, 14);
+  torso.scale(0.7, 0.82, 1.15);
+  const pelvis = new THREE.CylinderGeometry(0.19, 0.18, 0.2, 12);
+  pelvis.scale(0.8, 1, 1);
+  const boot = new THREE.BoxGeometry(0.26, 0.08, 0.11);
+  const head = new THREE.SphereGeometry(0.125, 16, 12);
+  head.scale(1, 1.12, 0.95);
+  // Hair: the top and back of the head.
+  const hair = new THREE.SphereGeometry(0.133, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55);
+  hair.scale(1.02, 1.1, 0.98);
+  hair.rotateZ(0.35);
+  return {
+    torso,
+    pelvis,
+    thigh: new THREE.CapsuleGeometry(0.078, 0.28, 4, 10),
+    shortsLeg: new THREE.CylinderGeometry(0.105, 0.1, 0.24, 10),
+    shin: new THREE.CapsuleGeometry(0.068, 0.3, 4, 10),
+    boot,
+    neck: new THREE.CylinderGeometry(0.05, 0.055, 0.1, 8),
+    head,
+    hair,
+    eye: new THREE.SphereGeometry(0.018, 6, 4),
+    upperArm: new THREE.CapsuleGeometry(0.066, 0.18, 4, 8),
+    forearm: new THREE.CapsuleGeometry(0.048, 0.18, 4, 8),
+    hand: new THREE.SphereGeometry(0.05, 8, 6),
+    glove: new THREE.SphereGeometry(0.072, 8, 6),
+    number: new THREE.PlaneGeometry(0.22, 0.22),
+  };
+}
+
+const numberMaterials = new Map<number, THREE.MeshBasicMaterial>();
+
+/** A white shirt number on a transparent background, for the back of the shirt. */
+function numberMaterial(n: number): THREE.MeshBasicMaterial {
+  let m = numberMaterials.get(n);
+  if (!m) {
+    const [c, g] = canvas(64, 64);
+    g.fillStyle = '#ffffff';
+    g.font = 'bold 48px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(n), 32, 35);
+    m = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
+    numberMaterials.set(n, m);
+  }
+  return m;
 }
 
 // --- generated textures ---------------------------------------------------------
