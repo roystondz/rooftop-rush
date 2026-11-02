@@ -2,7 +2,7 @@ import './style.css';
 import type { Difficulty } from '../shared/bot';
 import { QUICK_CHAT } from '../shared/chat';
 import { DEFAULT_KITS, KITS, kitCss, teamKits } from '../shared/kits';
-import { DEFAULT_TEAM_NAMES, MAX_TEAM_NAME, teamNames } from '../shared/names';
+import { cleanTeamName, DEFAULT_TEAM_NAMES, MAX_TEAM_NAME, teamNames } from '../shared/names';
 import type { World } from '../shared/types';
 import { Sfx } from './audio';
 import { Effects } from './effects';
@@ -16,8 +16,21 @@ import { MAX_PER_TEAM, type LobbyInfo } from '../shared/protocol';
 import { OnlineGame } from './online';
 import { Renderer } from './renderer';
 import { loadSettings, saveSettings } from './settings';
-import { clearStats, loadStats, recordEvent, recordResult, saveStats, type Opponent } from './stats';
+import { clearStats, loadStats, recordEvent, recordResult, recordTournament, saveStats, type Opponent } from './stats';
 import { renderStats } from './stats-view';
+import {
+  FINISH_NAMES,
+  ROUND_NAMES,
+  finish,
+  loadTournament,
+  newTournament,
+  nextMatch,
+  recordYourMatch,
+  saveTournament,
+  status,
+  type Tournament,
+} from './tournament';
+import { renderBracket } from './tournament-view';
 import { TouchControls, type TouchMode } from './touch';
 import type { GameMode, Team } from '../shared/types';
 import { penaltyDuel } from '../shared/sim';
@@ -57,7 +70,7 @@ let names: [string, string] = [...DEFAULT_TEAM_NAMES];
 const lag = lagFromUrl();
 const debugNet = new URLSearchParams(location.search).has('debug');
 
-const screens = ['menu', 'online', 'lobby', 'pause', 'fulltime', 'stats'] as const;
+const screens = ['menu', 'online', 'lobby', 'pause', 'fulltime', 'stats', 'tournament'] as const;
 type Screen = (typeof screens)[number];
 function show(screen: Screen | null): void {
   for (const s of screens) $(s).classList.toggle('hidden', s !== screen);
@@ -89,7 +102,7 @@ requestAnimationFrame(loop);
 function syncTouchControls(): void {
   const inMatch =
     (mode === 'local' && game.world !== null) || (mode === 'online' && online?.started === true);
-  const menuOpen = ['pause', 'fulltime', 'lobby', 'online', 'menu', 'stats'].some((id) => !$(id).classList.contains('hidden'));
+  const menuOpen = ['pause', 'fulltime', 'lobby', 'online', 'menu', 'stats', 'tournament'].some((id) => !$(id).classList.contains('hidden'));
   document.documentElement.classList.toggle('in-match', inMatch && !menuOpen);
   touch?.show(inMatch && !menuOpen);
   if (touch && inMatch) {
@@ -148,7 +161,9 @@ function playLocal(): void {
 }
 
 function toMenu(): void {
+  tourMatch = null; // quitting a tournament match: it can be played again
   game.stop();
+  showTournamentButton();
   leaveOnline();
   hud.hide();
   mode = 'menu';
@@ -175,6 +190,7 @@ function showResult(w: World, myTeam: 0 | 1): void {
   if (onPens && w.winner !== -1) $('result-title').textContent += onPens;
   $('result-extra').textContent = streakLine();
   $('again').textContent = mode === 'online' ? 'Back to lobby' : 'Play again';
+  afterResult = 'again';
   $('rematch-status').textContent = '';
   show('fulltime');
 }
@@ -202,9 +218,140 @@ effects.onEvent = (w, e) => {
 };
 
 effects.onFullTime = (w) => {
-  if (mode === 'local') showResult(w, game.humanTeam);
+  if (mode === 'local' && tourMatch) finishTournamentMatch(w);
+  else if (mode === 'local') showResult(w, game.humanTeam);
   else if (mode === 'online' && online) showResult(w, online.team);
 };
+
+// --- tournament ---------------------------------------------------------------------
+
+let tour: Tournament | null = loadTournament();
+/** The tournament match being played; `drawn` holds the score if it went to penalties. */
+let tourMatch: { round: number; opponent: number; level: Difficulty; drawn: [number, number] | null } | null = null;
+/** What the result screen's main button does. */
+let afterResult: 'again' | 'tournament' = 'again';
+
+/** You, as you are now (name and kit may have changed since the tournament began). */
+const tournamentYou = () => ({ name: cleanTeamName(settings.teamName, DEFAULT_TEAM_NAMES[0]), kit: settings.kit });
+
+function showTournamentButton(): void {
+  const next = tour && nextMatch(tour);
+  $('tour-sub').textContent = next ? `Next: ${ROUND_NAMES[next.round].toLowerCase()}` : '8 teams · knockout';
+}
+showTournamentButton();
+
+function openTournament(): void {
+  if (!tour) {
+    tour = newTournament(tournamentYou());
+    saveTournament(tour);
+  }
+  renderTournament(tour);
+  show('tournament');
+}
+
+function renderTournament(t: Tournament): void {
+  renderBracket($('bracket'), t);
+  const st = status(t);
+  const next = nextMatch(t);
+  $('tour-champion').classList.toggle('hidden', st !== 'champion');
+  $('tour-play').classList.toggle('hidden', !next);
+  $('tour-new').classList.toggle('hidden', st === 'playing');
+  $('tour-abandon').classList.toggle('hidden', st !== 'playing');
+  if (next) {
+    const opp = t.entrants[next.opponent];
+    $('tour-title').textContent = 'Tournament';
+    $('tour-next').textContent = `${ROUND_NAMES[next.round]} vs ${opp.name} (${opp.level})`;
+    $('tour-play').textContent = `Play the ${ROUND_NAMES[next.round].toLowerCase()}`;
+  } else if (st === 'champion') {
+    $('tour-title').textContent = `${t.entrants[0].name} win the cup!`;
+    $('tour-next').textContent = 'Unbeaten through three knockout rounds.';
+  } else {
+    const champ = t.rounds[2][0];
+    $('tour-title').textContent = 'Knocked out';
+    $('tour-next').textContent = `${FINISH_NAMES[finish(t)]} · ${champ ? `${t.entrants[champ.winner].name} won the cup` : ''}`;
+  }
+}
+
+function playTournamentMatch(): void {
+  const next = tour && nextMatch(tour);
+  if (!tour || !next) return;
+  startAudio();
+  enterFullscreen();
+  leaveOnline();
+  const you = tournamentYou();
+  tour.entrants[0] = { ...you, level: 'you' };
+  saveTournament(tour);
+  const opp = tour.entrants[next.opponent];
+  mode = 'local';
+  show(null);
+  useTeams(teamNames(you.name, opp.name), teamKits(you.kit, opp.kit));
+  const level: Difficulty = opp.level === 'you' ? 'normal' : opp.level;
+  opponent = level;
+  tourMatch = { ...next, level, drawn: null };
+  game.start(level, 'match', true);
+}
+
+/** Full time in a tournament match: penalties after a draw, otherwise record it and show the result. */
+function finishTournamentMatch(w: World): void {
+  const m = tourMatch!;
+  if (!tour) return;
+  if (w.mode === 'match' && w.winner === -1) {
+    m.drawn = [w.score[0], w.score[1]];
+    hud.message('PENALTIES!', `${w.score[0]} – ${w.score[1]} at full time`, 2.2);
+    setTimeout(() => {
+      if (tourMatch === m && mode === 'local') game.start(m.level, 'penalties');
+    }, 2200);
+    return;
+  }
+  tourMatch = null;
+  // You are always the first team in local play.
+  const yours: [number, number] = m.drawn ?? [w.score[0], w.score[1]];
+  // A shootout's result comes from its kick record (1 = scored), the same record that decides it.
+  const sum = (kicks: readonly number[]) => kicks.reduce((a, b) => a + b, 0);
+  const pens: [number, number] | null =
+    m.drawn && w.shootout ? [sum(w.shootout.kicks[0]), sum(w.shootout.kicks[1])] : null;
+  recordYourMatch(tour, yours, pens);
+  saveTournament(tour);
+  const st = status(tour);
+  if (st !== 'playing') {
+    recordTournament(stats, finish(tour));
+    saveStats(stats);
+  }
+  showTournamentButton();
+
+  const won = st !== 'out';
+  $('result-title').textContent =
+    st === 'champion' ? 'Champions!' : won ? `Through to the ${ROUND_NAMES[m.round + 1].toLowerCase()}!` : 'Knocked out';
+  const pensText = pens ? ` (${pens[0]}–${pens[1]} on penalties)` : '';
+  $('result-score').textContent = `${names[0]} ${yours[0]} – ${yours[1]} ${names[1]}${pensText}`;
+  $('result-extra').textContent = `${ROUND_NAMES[m.round]}${won ? '' : ` · ${FINISH_NAMES[finish(tour)]}`}`;
+  $('again').textContent = st === 'champion' ? 'Lift the trophy' : 'Continue';
+  $('rematch-status').textContent = '';
+  afterResult = 'tournament';
+  show('fulltime');
+}
+
+$('tour-btn').addEventListener('click', openTournament);
+$('tour-play').addEventListener('click', playTournamentMatch);
+$('tour-back').addEventListener('click', () => {
+  showTournamentButton();
+  show('menu');
+});
+$('tour-new').addEventListener('click', () => {
+  tour = newTournament(tournamentYou());
+  saveTournament(tour);
+  renderTournament(tour);
+});
+$('tour-abandon').addEventListener('click', () => {
+  if (!tour || !confirm('Abandon this tournament? It counts as going out in your current round.')) return;
+  // Abandoning is like losing your next match, so it can't be used to dodge a defeat in your stats.
+  recordTournament(stats, nextMatch(tour)?.round ?? finish(tour));
+  saveStats(stats);
+  tour = null;
+  saveTournament(null);
+  showTournamentButton();
+  show('menu');
+});
 
 // --- online play ------------------------------------------------------------------
 
@@ -354,7 +501,11 @@ $('invite-join').addEventListener('click', () => {
 });
 
 $('again').addEventListener('click', () => {
-  if (mode === 'online' && online) {
+  if (afterResult === 'tournament') {
+    game.stop();
+    mode = 'menu';
+    openTournament();
+  } else if (mode === 'online' && online) {
     // The server brings everyone back to the lobby a few seconds after full time.
     if (online.lobbyInfo && !online.lobbyInfo.started) show('lobby');
     else $('rematch-status').textContent = 'Back to the lobby in a moment…';

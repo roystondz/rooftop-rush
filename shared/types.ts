@@ -118,6 +118,8 @@ export interface World {
   phaseTimer: number;
   score: [number, number];
   goldenGoal: boolean;
+  /** A tie at full time ends the match as a draw instead of going to golden goal (tournament). */
+  drawAllowed: boolean;
   kickoffTeam: Team;
   /** True after a kickoff until the kicking team's first pass. */
   kickoffPending: boolean;

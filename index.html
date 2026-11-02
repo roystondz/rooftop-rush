@@ -101,6 +101,7 @@
           <button data-difficulty="hard">Hard</button>
         </div>
         <button id="play" class="primary">Play vs bots</button>
+        <button id="tour-btn" class="tour-btn">Tournament <small id="tour-sub">8 teams · knockout</small></button>
         <button id="online-btn">Play online</button>
         <button id="stats-btn">Your stats</button>
         <button id="install-btn" class="hidden">Install app</button>
@@ -199,12 +200,30 @@
           <h3>Penalty shootouts</h3>
           <table id="stat-shootouts" class="stat-table"></table>
           <p id="stat-pens" class="stat-line"></p>
+          <p id="stat-tournaments" class="stat-line"></p>
           <p id="stat-best" class="stat-line"></p>
           <h3>Recent</h3>
           <ol id="stat-recent" class="recent"></ol>
         </div>
         <button id="stats-back" class="primary">Back</button>
         <button id="stats-reset" class="mini danger">Reset stats</button>
+      </div>
+    </div>
+
+    <div id="tournament" class="overlay hidden">
+      <div class="panel tournament-panel">
+        <h2 id="tour-title">Tournament</h2>
+        <p class="tag">8 teams · knockout · a draw goes to penalties</p>
+        <div id="tour-champion" class="tour-champion hidden">
+          <div class="trophy" aria-hidden="true">🏆</div>
+          <p>CHAMPIONS</p>
+        </div>
+        <div id="bracket" class="bracket"></div>
+        <p id="tour-next" class="tour-next"></p>
+        <button id="tour-play" class="primary">Play</button>
+        <button id="tour-new" class="primary hidden">New tournament</button>
+        <button id="tour-back">Back</button>
+        <button id="tour-abandon" class="mini danger">Abandon tournament</button>
       </div>
     </div>
 

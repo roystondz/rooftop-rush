@@ -1451,3 +1451,139 @@ html.touch,
     max-width: 50vw;
   }
 }
+
+/* --- Tournament ---------------------------------------------------------------- */
+
+.panel button.tour-btn small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.tournament-panel {
+  width: min(720px, 100%);
+}
+
+.bracket {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  text-align: left;
+}
+
+.bracket .round {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Matches spread out down each column, so later rounds sit between the matches that feed them. */
+.bracket .matches {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 8px;
+}
+
+.bracket h3 {
+  margin: 0 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+
+.bracket .match {
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.bracket .match.next {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.bracket .side {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bracket .side + .side {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.bracket .side span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket .side b {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.bracket .side.you span {
+  color: var(--accent);
+}
+
+.bracket .side.lost {
+  opacity: 0.45;
+}
+
+.bracket .side.won {
+  font-weight: 800;
+}
+
+.tour-next {
+  margin: 14px 0 0;
+  font-weight: 700;
+}
+
+.tour-next:empty {
+  display: none;
+}
+
+.tour-champion {
+  margin: 0 0 12px;
+  color: var(--accent);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.2em;
+}
+
+.tour-champion p {
+  margin: 0;
+}
+
+.trophy {
+  font-size: 64px;
+  line-height: 1;
+  filter: drop-shadow(0 0 18px rgba(250, 204, 21, 0.6));
+  animation: trophy-bounce 1.6s ease-in-out infinite;
+}
+
+@keyframes trophy-bounce {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(4deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .bracket {
+    grid-template-columns: 1fr;
+  }
+}

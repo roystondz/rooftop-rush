@@ -17,7 +17,7 @@ export function inOwnBox(p: Player): boolean {
   return Math.abs(p.x - ownGoalX(p.team)) < PITCH.boxDepth && Math.abs(p.z) < PITCH.boxHalfWidth;
 }
 
-export function createWorld(options: { duration?: number; mode?: GameMode } = {}): World {
+export function createWorld(options: { duration?: number; mode?: GameMode; drawAllowed?: boolean } = {}): World {
   const players: Player[] = [];
   for (const team of [0, 1] as const) {
     for (const role of ROLES) players.push(makePlayer(players.length, team, role));
@@ -32,6 +32,7 @@ export function createWorld(options: { duration?: number; mode?: GameMode } = {}
     phaseTimer: MATCH.kickoffDelay,
     score: [0, 0],
     goldenGoal: false,
+    drawAllowed: options.drawAllowed ?? false,
     kickoffTeam: 0,
     kickoffPending: mode === 'match', // shootouts have no kickoff pass
     players,
@@ -85,7 +86,7 @@ export function step(w: World, inputs: ReadonlyArray<Input | undefined>): void {
 
   w.time = Math.max(0, w.time - DT);
   if (w.time === 0 && !w.goldenGoal) {
-    if (w.score[0] === w.score[1]) {
+    if (w.score[0] === w.score[1] && !w.drawAllowed) {
       w.goldenGoal = true;
       emit(w, { type: 'goldenGoal' });
     } else {

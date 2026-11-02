@@ -39,6 +39,8 @@ export interface Stats {
   bestStreak: number;
   biggestWin: { margin: number; line: string } | null;
   recent: RecentResult[];
+  /** Tournaments finished, won, and the best finish (see tournament.ts FINISH_NAMES; -1 = none yet). */
+  tournaments: { played: number; won: number; best: number };
 }
 
 const KEY = 'rooftop-rush.stats';
@@ -57,7 +59,15 @@ export function emptyStats(): Stats {
     bestStreak: 0,
     biggestWin: null,
     recent: [],
+    tournaments: { played: 0, won: 0, best: -1 },
   };
+}
+
+/** A tournament is over: `finish` is 0 (out in the quarter-final) up to 3 (champion). */
+export function recordTournament(s: Stats, finish: number): void {
+  s.tournaments.played++;
+  if (finish === 3) s.tournaments.won++;
+  s.tournaments.best = Math.max(s.tournaments.best, finish);
 }
 
 /** Adds up every row: total played, won, drawn and lost across matches and shootouts. */
@@ -172,6 +182,12 @@ export function cleanStats(raw: unknown): Stats {
   if (big && typeof big.line === 'string' && count(big.margin) > 0) {
     s.biggestWin = { margin: count(big.margin), line: big.line.slice(0, 60) };
   }
+  const tours = (r.tournaments ?? {}) as { [k: string]: unknown };
+  s.tournaments = {
+    played: count(tours.played),
+    won: Math.min(count(tours.won), count(tours.played)),
+    best: typeof tours.best === 'number' && Number.isInteger(tours.best) && tours.best >= 0 && tours.best <= 3 ? tours.best : -1,
+  };
   if (Array.isArray(r.recent)) {
     for (const e of r.recent.slice(0, RECENT)) {
       if (!e || typeof e !== 'object') continue;

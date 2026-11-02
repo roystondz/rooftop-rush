@@ -104,6 +104,8 @@ client/            Browser only.
   replay.ts        Instant replay: keeps the last few seconds and replays goals in slow motion.
   stats.ts         Your record (results, goals, penalties, streaks), saved in this browser.
   stats-view.ts    The "Your stats" screen.
+  tournament.ts    Knockout tournament vs bots: draw, bracket, bot results, saving.
+  tournament-view.ts  The bracket.
   renderer.ts      Three.js drawing: arena, city, players, ball, camera, effects.
   input.ts         Keyboard, gamepad and touch → Input.
   touch.ts         On-screen joystick and buttons for phones (multi-touch).
@@ -181,4 +183,5 @@ Then open http://localhost:3000.
 8. ~~Your stats, saved in the browser (accounts can sync them later)~~ ✅
 9. ~~Kit colours, invite links, crowd reactions~~ ✅
 10. ~~Install as an app (works offline vs bots), phone vibration, quick chat~~ ✅
-11. Accounts and leaderboard with Supabase.
+11. ~~Tournament: 8-team knockout vs bots, penalties after a draw, saved progress~~ ✅
+12. Accounts and leaderboard with Supabase.

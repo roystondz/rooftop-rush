@@ -49,8 +49,9 @@ export class Game {
     return this.me.player;
   }
 
-  start(difficulty: Difficulty, mode: GameMode = 'match'): void {
-    const w = createWorld({ mode });
+  /** `drawAllowed`: a tie at full time ends the match (a tournament then plays penalties). */
+  start(difficulty: Difficulty, mode: GameMode = 'match', drawAllowed = false): void {
+    const w = createWorld({ mode, drawAllowed });
     const skill = BOT_SKILLS[difficulty];
     for (const p of w.players) if (p.team !== this.humanTeam) p.speedScale = skill.speedScale;
     // Your teammates always play at normal level; the difficulty only changes the opponents.

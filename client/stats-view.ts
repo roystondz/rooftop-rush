@@ -1,5 +1,6 @@
 // Draws the "Your stats" screen from the stats saved on this device. Team names come from
 // players, so everything is set with textContent, never as HTML.
+import { FINISH_NAMES } from './tournament';
 import { OPPONENTS, totals, type Opponent, type RecentResult, type Stats, type Tally } from './stats';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -35,6 +36,11 @@ export function renderStats(s: Stats): void {
   if (p.taken) parts.push(`Your kicks: ${p.scored} of ${p.taken} scored`);
   if (p.faced) parts.push(`In goal: ${p.saved} of ${p.faced} kept out`);
   $('stat-pens').textContent = parts.join(' · ');
+
+  const tours = s.tournaments;
+  $('stat-tournaments').textContent = tours.played
+    ? `Tournaments: ${tours.played} played · ${tours.won} won · best: ${FINISH_NAMES[tours.best]}`
+    : '';
 
   const best: string[] = [];
   if (s.streak >= 2) best.push(`On a ${s.streak}-win streak`);
