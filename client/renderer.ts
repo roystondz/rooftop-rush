@@ -52,6 +52,9 @@ export class Renderer {
   private marker!: THREE.Group;
   private ghost!: THREE.Mesh;
   private aimLine!: THREE.Mesh;
+  /** Rings under players other people control (online), so you can tell people from bots. */
+  private otherRings: THREE.Mesh[] = [];
+  private otherIds: number[] = [];
   private switchHint!: THREE.Sprite;
   private switchHintId = -1;
   private trail!: THREE.InstancedMesh;
@@ -104,6 +107,20 @@ export class Renderer {
     this.camX = 0;
     this.trailPoints.length = 0;
     this.ghost.visible = false;
+  }
+
+  /** Online: players controlled by other people get a thin white ring. */
+  setOtherHumans(ids: number[]): void {
+    this.otherIds = ids;
+    while (this.otherRings.length < ids.length) {
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.6, 0.68, 32),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      this.scene.add(ring);
+      this.otherRings.push(ring);
+    }
   }
 
   /** Marks the teammate the switch button (Q) would give you; -1 hides it. */
@@ -190,6 +207,12 @@ export class Renderer {
     } else {
       this.marker.visible = false;
     }
+
+    this.otherRings.forEach((ring, i) => {
+      const view = this.playerViews[this.otherIds[i]];
+      ring.visible = i < this.otherIds.length && !!view;
+      if (view) ring.position.set(view.root.position.x, 0.025, view.root.position.z);
+    });
 
     const hinted = this.playerViews[this.switchHintId];
     this.switchHint.visible = !!hinted && this.switchHintId !== controlledId;

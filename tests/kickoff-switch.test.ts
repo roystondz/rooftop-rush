@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Bot, BOT_SKILLS } from '../shared/bot';
 import { DT, MATCH, PITCH, PLAYER } from '../shared/constants';
-import { autoSwitch, autoSwitchDefending, switchToNearest, SwitchTimer } from '../shared/control';
+import { autoSwitch, autoSwitchDefending, switchToNearest, SwitchTimer, type Human } from '../shared/control';
 import { Predictor } from '../shared/prediction';
 import { makeSnapshot } from '../shared/protocol';
 import { createWorld, step } from '../shared/sim';
@@ -79,10 +79,10 @@ describe('kickoff', () => {
 
   it('hands control back to your attacker at every kickoff', () => {
     const w = createWorld();
-    const controlled = [2, -1]; // e.g. you were on your keeper when the goal went in
+    const me: Human = { seat: 0, team: 0, player: 2 }; // e.g. you were on your keeper when the goal went in
     w.events = [{ type: 'kickoff', team: 1 }];
-    autoSwitch(w, controlled, w.events);
-    expect(controlled[0]).toBe(KICKER);
+    autoSwitch(w, [me], w.events);
+    expect(me.player).toBe(KICKER);
   });
 
   it('the predictor keeps the kicker still too', () => {
@@ -96,59 +96,108 @@ describe('kickoff', () => {
 
 describe('switching while defending', () => {
   /** Team 1 has the ball near our midfielder (id 1); you control the attacker (id 0), far away. */
-  function defending(): { w: World; controlled: number[]; timer: SwitchTimer } {
+  function defending(): { w: World; me: Human; timer: SwitchTimer } {
     const w = createWorld();
     Object.assign(w, { phase: 'playing', kickoffPending: false, tick: 1000 });
     Object.assign(w.players[0], { x: 12, z: 8 });
     Object.assign(w.players[1], { x: -6, z: -2 });
     Object.assign(w.players[3], { x: -5, z: 0 });
     Object.assign(w.ball, { x: -4.1, z: 0, owner: 3 });
-    return { w, controlled: [0, -1], timer: new SwitchTimer() };
+    return { w, me: { seat: 0, team: 0, player: 0 }, timer: new SwitchTimer() };
   }
 
   it('switches to the teammate much closer to the ball', () => {
-    const { w, controlled, timer } = defending();
-    const change = autoSwitchDefending(w, controlled, 0, timer);
+    const { w, me, timer } = defending();
+    const change = autoSwitchDefending(w, [me], me, timer);
     expect(change).toEqual({ from: 0, to: 1 });
-    expect(controlled[0]).toBe(1);
+    expect(me.player).toBe(1);
   });
 
   it("doesn't switch when you are already close enough to go for it", () => {
-    const { w, controlled, timer } = defending();
+    const { w, me, timer } = defending();
     Object.assign(w.players[0], { x: -1, z: 1 });
-    expect(autoSwitchDefending(w, controlled, 0, timer)).toBeNull();
+    expect(autoSwitchDefending(w, [me], me, timer)).toBeNull();
   });
 
   it("doesn't switch while your team has the ball", () => {
-    const { w, controlled, timer } = defending();
+    const { w, me, timer } = defending();
     w.ball.owner = 1;
-    expect(autoSwitchDefending(w, controlled, 0, timer)).toBeNull();
+    expect(autoSwitchDefending(w, [me], me, timer)).toBeNull();
   });
 
   it('keeps you on the receiver while your pass is travelling', () => {
     const w = afterWhistle();
-    const controlled = [KICKER, -1];
+    const me: Human = { seat: 0, team: 0, player: KICKER };
     const timer = new SwitchTimer();
     step(w, only(KICKER, { ...idle, pass: true }));
-    autoSwitch(w, controlled, w.events, timer);
-    const receiver = controlled[0];
+    autoSwitch(w, [me], w.events, timer);
+    const receiver = me.player;
     expect(receiver).not.toBe(KICKER);
     // Same tick and the following ones: the loose ball is ours, so no snapping back to the passer.
     for (let i = 0; i < 20; i++) {
-      expect(autoSwitchDefending(w, controlled, 0, timer)).toBeNull();
+      expect(autoSwitchDefending(w, [me], me, timer)).toBeNull();
       step(w, []);
-      autoSwitch(w, controlled, w.events, timer);
+      autoSwitch(w, [me], w.events, timer);
     }
-    expect(controlled[0]).toBe(receiver);
+    expect(me.player).toBe(receiver);
   });
 
   it("waits a moment after a manual switch, so it doesn't fight you", () => {
-    const { w, controlled, timer } = defending();
-    controlled[0] = 1;
-    switchToNearest(w, controlled, 0, timer); // you pressed Q and went back to the far player
-    expect(controlled[0]).toBe(0);
-    expect(autoSwitchDefending(w, controlled, 0, timer)).toBeNull();
+    const { w, me, timer } = defending();
+    me.player = 1;
+    switchToNearest(w, [me], me, timer); // you pressed Q and went back to the far player
+    expect(me.player).toBe(0);
+    expect(autoSwitchDefending(w, [me], me, timer)).toBeNull();
     w.tick += 60;
-    expect(autoSwitchDefending(w, controlled, 0, timer)).not.toBeNull();
+    expect(autoSwitchDefending(w, [me], me, timer)).not.toBeNull();
   });
 });
+
+describe('several people on one team', () => {
+  /** Two people on team 0 (seats 0 and 1), one on team 1 (seat 2). */
+  function crowd(): { w: World; humans: Human[] } {
+    const w = createWorld();
+    Object.assign(w, { phase: 'playing', kickoffPending: false, tick: 1000 });
+    const humans: Human[] = [
+      { seat: 0, team: 0, player: -1 },
+      { seat: 1, team: 0, player: -1 },
+      { seat: 2, team: 1, player: -1 },
+    ];
+    w.events = [{ type: 'kickoff', team: 0 }];
+    autoSwitch(w, humans, w.events);
+    return { w, humans };
+  }
+
+  it('gives each person their own player at kickoff: attacker, then midfielder', () => {
+    const { w, humans } = crowd();
+    expect(w.players[humans[0].player].role).toBe('attacker');
+    expect(w.players[humans[1].player].role).toBe('midfielder');
+    expect(humans[0].player).not.toBe(humans[1].player);
+    expect(w.players[humans[2].player].team).toBe(1);
+  });
+
+  it("never switches you onto a teammate another person is controlling", () => {
+    const { w, humans } = crowd();
+    const [a, b] = humans;
+    // a passes to b's player: b already has it, so a stays where they are.
+    w.events = [{ type: 'pass', team: 0, player: a.player, target: b.player }];
+    const before = a.player;
+    autoSwitch(w, humans, w.events);
+    expect(a.player).toBe(before);
+    // The switch button skips b's player too.
+    Object.assign(w.ball, { x: w.players[b.player].x, z: w.players[b.player].z, owner: 3 });
+    const target = switchToNearest(w, humans, a);
+    expect(target?.to).not.toBe(b.player);
+  });
+
+  it('hands a ball won by a bot to the nearest person on that team', () => {
+    const { w, humans } = crowd();
+    const keeper = w.players.find((p) => p.team === 0 && p.role === 'keeper')!;
+    Object.assign(w.players[humans[1].player], { x: keeper.x + 2, z: keeper.z }); // midfielder close by
+    w.events = [{ type: 'possession', team: 0, player: keeper.id }];
+    autoSwitch(w, humans, w.events);
+    expect(humans[1].player).toBe(keeper.id);
+    expect(w.players[humans[0].player].role).toBe('attacker');
+  });
+});
+

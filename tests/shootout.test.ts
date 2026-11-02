@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Bot, BOT_SKILLS } from '../shared/bot';
 import { DT, PITCH, PLAYER, SHOOTOUT } from '../shared/constants';
-import { autoSwitch, startingPlayer } from '../shared/control';
+import { assignStartingPlayers, autoSwitch, type Human } from '../shared/control';
 import { createWorld, penaltyDuel, shootoutWinner, step } from '../shared/sim';
 import type { Input, World } from '../shared/types';
 
@@ -56,8 +56,13 @@ describe('penalty shootout: setup', () => {
 
   it("controls whoever is involved: you take your team's kicks and keep for theirs", () => {
     const w = shootout();
-    expect(startingPlayer(w, 0)).toBe(penaltyDuel(w)!.taker.id);
-    expect(startingPlayer(w, 1)).toBe(penaltyDuel(w)!.keeper.id);
+    const humans: Human[] = [
+      { seat: 0, team: 0, player: -1 },
+      { seat: 1, team: 1, player: -1 },
+    ];
+    assignStartingPlayers(w, humans);
+    expect(humans[0].player).toBe(penaltyDuel(w)!.taker.id);
+    expect(humans[1].player).toBe(penaltyDuel(w)!.keeper.id);
   });
 });
 
@@ -148,11 +153,26 @@ describe('penalty shootout: taking a kick', () => {
 
   it('switches you between taker and keeper at each kick', () => {
     const w = shootout();
-    const controlled = [startingPlayer(w, 0), -1];
+    const me: Human = { seat: 0, team: 0, player: penaltyDuel(w)!.taker.id };
     w.shootout!.taker = 1;
     w.events = [{ type: 'penaltySetup', team: 1 }];
-    autoSwitch(w, controlled, w.events);
-    expect(controlled[0]).toBe(penaltyDuel(w)!.keeper.id);
+    autoSwitch(w, [me], w.events);
+    expect(me.player).toBe(penaltyDuel(w)!.keeper.id);
+  });
+
+  it('takes turns with teammates: kicks rotate between the people on a team', () => {
+    const w = shootout();
+    const humans: Human[] = [
+      { seat: 0, team: 0, player: -1 },
+      { seat: 1, team: 0, player: -1 },
+    ];
+    assignStartingPlayers(w, humans);
+    const taker = penaltyDuel(w)!.taker.id;
+    expect(humans[0].player).toBe(taker); // first kick: seat 0
+    w.shootout!.kicks[0].push(1); // one kick taken…
+    assignStartingPlayers(w, humans);
+    expect(humans[1].player).toBe(taker); // …second kick: seat 1
+    expect(humans[0].player).not.toBe(taker);
   });
 });
 

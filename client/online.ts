@@ -10,13 +10,14 @@ import {
   lerpSnapshots,
   packInput,
   unpackInput,
+  type LobbyInfo,
   type ServerMessage,
   type Snapshot,
 } from '../shared/protocol';
-import { pressToward, screenToPitch, switchTarget } from '../shared/control';
+import { humansFromSeats, pressToward, screenToPitch, switchTarget, type Human } from '../shared/control';
 import { carriedBallPosition, createWorld } from '../shared/sim';
 import { NO_INPUT } from '../shared/types';
-import type { GameMode, Input, MatchEventType, Team, World } from '../shared/types';
+import type { Input, MatchEventType, Team, World } from '../shared/types';
 import type { Effects } from './effects';
 import type { Hud } from './hud';
 import type { InputManager } from './input';
@@ -30,16 +31,20 @@ const BALL_TOUCHED: readonly MatchEventType[] = ['possession', 'save', 'tackle',
 const BALL_SMOOTHING = 10;
 
 export interface OnlineCallbacks {
-  room(code: string, isPublic: boolean, mode: GameMode): void;
+  /** The room changed: who's in, which team, whether it has started. */
+  lobby(info: LobbyInfo): void;
   start(team: Team, names: [string, string]): void;
-  rematchRequested(team: Team): void;
-  opponentLeft(): void;
+  /** A short message to show, e.g. someone joined or left. */
+  notice(text: string): void;
   error(message: string): void;
   disconnected(): void;
 }
 
 export class OnlineGame {
   team: Team = 0;
+  /** Our seat in the room (each person has one). */
+  seat = -1;
+  lobbyInfo: LobbyInfo | null = null;
   started = false;
   ping = 0;
 
@@ -82,7 +87,7 @@ export class OnlineGame {
 
   get controlledId(): number {
     const s = this.snaps[this.snaps.length - 1];
-    return s ? s.controlled[this.team] : -1;
+    return s ? (s.controlled[this.seat] ?? -1) : -1;
   }
 
   leave(): void {
@@ -93,8 +98,14 @@ export class OnlineGame {
     this.hud.hide();
   }
 
-  rematch(): void {
-    this.conn.send({ t: 'rematch' });
+  /** Lobby: move to the other team. */
+  chooseTeam(team: Team): void {
+    this.conn.send({ t: 'team', team });
+  }
+
+  /** Lobby: the host starts the match. */
+  requestStart(): void {
+    this.conn.send({ t: 'start' });
   }
 
   /** Called every animation frame by main.ts. */
@@ -138,7 +149,10 @@ export class OnlineGame {
     this.predictor.decay(frameDt);
     this.drawPrediction(this.view);
     this.drawBall(this.view, frameDt);
-    this.renderer.setSwitchHint(defendingHint(this.view, this.snaps[this.snaps.length - 1].controlled, this.team));
+    const humans = humansFromSeats(this.view, this.snaps[this.snaps.length - 1].controlled);
+    this.renderer.setSwitchHint(defendingHint(this.view, humans, this.seat));
+    // Rings under the players other people are controlling (teammates and opponents).
+    this.renderer.setOtherHumans(humans.filter((h) => h.seat !== this.seat).map((h) => h.player));
     this.renderer.render(this.view, null, 1, frameDt, this.controlledId);
     this.hud.update(this.view, this.view.players[this.controlledId], frameDt);
     this.updateNetReadout();
@@ -231,12 +245,23 @@ export class OnlineGame {
 
   private receive(m: ServerMessage): void {
     switch (m.t) {
-      case 'room':
-        this.team = m.team;
-        this.on.room(m.code, m.isPublic, m.mode);
+      case 'lobby': {
+        this.lobbyInfo = m;
+        this.seat = m.you;
+        const mine = m.players.find((p) => p.seat === m.you);
+        if (mine && !m.started) this.team = mine.team;
+        if (!m.started && this.started) {
+          // Full time is over and the room is back in the lobby.
+          this.started = false;
+          this.hud.hide();
+          this.renderer.setOtherHumans([]);
+        }
+        this.on.lobby(m);
         break;
+      }
       case 'start':
         this.team = m.team;
+        this.seat = m.you;
         this.snaps = [];
         this.view = createWorld({ mode: m.mode });
         this.latest = createWorld({ mode: m.mode });
@@ -257,7 +282,7 @@ export class OnlineGame {
         if (this.snaps.length > 120) this.snaps.shift();
         this.clock.onSnapshot(m.s.tick, performance.now());
         applySnapshot(this.latest, m.s);
-        this.predictor.reconcile(m.s, m.ack, m.s.controlled[this.team]);
+        this.predictor.reconcile(m.s, m.ack, m.s.controlled[this.seat] ?? -1);
         this.effects.watchPhase(this.latest);
         for (const e of m.s.ev) {
           const ourKick = (e.type === 'shot' || e.type === 'powerShot' || e.type === 'pass') && e.player === this.kick.kicker;
@@ -274,12 +299,8 @@ export class OnlineGame {
           this.effects.handle(this.latest, e);
         }
         break;
-      case 'rematch':
-        this.on.rematchRequested(m.team);
-        break;
-      case 'left':
-        this.started = false;
-        this.on.opponentLeft();
+      case 'notice':
+        this.on.notice(m.text);
         break;
       case 'error':
         this.on.error(m.message);
@@ -292,8 +313,9 @@ export class OnlineGame {
 }
 
 /** While the other team has the ball, mark the teammate the switch button would give you. */
-function defendingHint(w: World, controlled: [number, number], team: Team): number {
+function defendingHint(w: World, humans: Human[], seat: number): number {
+  const me = humans.find((h) => h.seat === seat);
   const owner = w.ball.owner >= 0 ? w.players[w.ball.owner] : undefined;
-  if (w.phase !== 'playing' || owner?.team === team) return -1;
-  return switchTarget(w, [...controlled], team);
+  if (!me || w.phase !== 'playing' || owner?.team === me.team) return -1;
+  return switchTarget(w, humans, me);
 }

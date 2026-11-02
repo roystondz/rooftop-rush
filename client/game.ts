@@ -3,16 +3,17 @@
 import { Bot, BOT_SKILLS, type Difficulty } from '../shared/bot';
 import { DT } from '../shared/constants';
 import {
+  assignStartingPlayers,
   autoSwitch,
   autoSwitchDefending,
+  humanPlayers,
   pressToward,
   screenToPitch,
-  startingPlayer,
   switchTarget,
   switchToNearest,
   SwitchTimer,
-  type Controlled,
   type Handover,
+  type Human,
 } from '../shared/control';
 import { createWorld, step } from '../shared/sim';
 import type { GameMode, Input, Team, World } from '../shared/types';
@@ -26,7 +27,8 @@ export class Game {
   readonly humanTeam: Team = 0;
   paused = false;
 
-  private controlled: Controlled = [-1, -1];
+  /** Just you, in seat 0. (Online, the server keeps one of these per person.) */
+  private me: Human = { seat: 0, team: 0, player: -1 };
   private switchTimer = new SwitchTimer();
   private bots: Bot[] = [];
   private prev: Snapshot | null = null;
@@ -40,7 +42,7 @@ export class Game {
   ) {}
 
   get controlledId(): number {
-    return this.controlled[this.humanTeam];
+    return this.me.player;
   }
 
   start(difficulty: Difficulty, mode: GameMode = 'match'): void {
@@ -50,8 +52,8 @@ export class Game {
     // Your teammates always play at normal level; the difficulty only changes the opponents.
     this.bots = w.players.map((p) => new Bot(p.id, p.team === this.humanTeam ? BOT_SKILLS.normal : skill));
     this.world = w;
-    this.controlled = [-1, -1];
-    this.controlled[this.humanTeam] = startingPlayer(w, this.humanTeam);
+    this.me = { seat: 0, team: this.humanTeam, player: -1 };
+    assignStartingPlayers(w, [this.me]);
     this.prev = null;
     this.acc = 0;
     this.paused = false;
@@ -80,7 +82,7 @@ export class Game {
     const alpha = this.paused ? 1 : this.acc / DT;
     const owner = w.ball.owner >= 0 ? w.players[w.ball.owner] : undefined;
     const defending = w.phase === 'playing' && owner?.team !== this.humanTeam;
-    this.renderer.setSwitchHint(defending ? switchTarget(w, this.controlled, this.humanTeam) : -1);
+    this.renderer.setSwitchHint(defending ? switchTarget(w, [this.me], this.me) : -1);
     this.renderer.render(w, this.prev, alpha, this.paused ? 0 : frameDt, this.controlledId);
     this.hud.update(w, w.players[this.controlledId], frameDt);
   }
@@ -88,22 +90,22 @@ export class Game {
   private tick(w: World): void {
     const human = this.input.read();
     Object.assign(human.game, screenToPitch(human.game, w)); // controls follow the penalty camera
-    if (human.switchPlayer) this.handOver(switchToNearest(w, this.controlled, this.humanTeam, this.switchTimer));
+    if (human.switchPlayer) this.handOver(switchToNearest(w, [this.me], this.me, this.switchTimer));
 
     const me = w.players[this.controlledId];
     if (human.press && me && Math.hypot(human.game.moveX, human.game.moveZ) < 0.2) {
       Object.assign(human.game, pressToward(me, w.ball)); // hold press: chase the ball
     }
 
-    const humans = new Set([this.controlledId]);
+    const humans = humanPlayers([this.me]);
     const inputs: Input[] = w.players.map((p) =>
       p.id === this.controlledId ? human.game : this.bots[p.id].think(w, humans),
     );
     this.prev = takeSnapshot(w, this.prev ?? undefined);
     step(w, inputs);
 
-    for (const c of autoSwitch(w, this.controlled, w.events, this.switchTimer)) this.handOver(c);
-    this.handOver(autoSwitchDefending(w, this.controlled, this.humanTeam, this.switchTimer));
+    for (const c of autoSwitch(w, [this.me], w.events, this.switchTimer)) this.handOver(c);
+    this.handOver(autoSwitchDefending(w, [this.me], this.me, this.switchTimer));
     this.effects.watchPhase(w);
     for (const e of w.events) this.effects.handle(w, e);
   }

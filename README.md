@@ -1,6 +1,6 @@
 # Rooftop Rush
 
-3v3 cage football on a city rooftop, in the browser. Play against bots, or **online 1v1**: each person controls one player and bots fill the other spots. The game server runs the match; browsers only send their inputs.
+3v3 cage football on a city rooftop, in the browser. Play against bots, or **online with up to 6 people** (3 a side): each person controls one player and bots fill any empty spots. The game server runs the match; browsers only send their inputs.
 
 ## Run it
 
@@ -13,7 +13,9 @@ npm run dev
 
 `npm run dev` starts two things side by side: the **game server** (port 2567) and the **game page** (port 5173). Open http://localhost:5173.
 
-**Try online play on one computer:** open http://localhost:5173 in two tabs. In the first, pick *Play online → Create private room*. In the second, pick *Play online* and type the 4-letter code.
+**Try online play on one computer:** open http://localhost:5173 in two tabs. In the first, pick *Play online → Create private room*. In the second, pick *Play online* and type the 4-letter code. The first tab is the host and presses **Start match**.
+
+**Online rooms:** up to 3 people a side, bots on any empty spots. In the lobby you can switch teams (*Join this team*), and each team is named after its first person. The host starts a private room; quick match starts by itself a few seconds after both teams have someone (straight away when full). Friends can join a match that's already under way (they take over a bot), and if someone leaves, a bot takes over their player. After full time everyone goes back to the lobby together. Players controlled by other people have a thin white ring.
 
 **Test a bad connection on your own machine:** add `?lag=200&jitter=40` to the address (200 ms round trip, plus up to 40 ms of random extra delay). Add `&debug` to see a red ring where the server last confirmed your player, and how many of your inputs are still unconfirmed.
 
@@ -82,11 +84,12 @@ shared/            Runs the same in the browser and on the server. No graphics, 
   math.ts          Small helpers (angles, seeded random numbers).
   protocol.ts      Online messages, snapshots, and the checks that reject bad client messages.
   prediction.ts    Client prediction and reconciliation for your own player online.
-  control.ts       Which player each human controls (auto-switch on pass and possession).
+  control.ts       Which player each person controls (several per team; auto-switch never takes a teammate's player).
+  interp.ts        Adaptive smoothing buffer for online play.
   names.ts         Cleaning and pairing team names.
 server/            Node.js only.
   server.ts        WebSocket server: quick match, room codes, rate limiting.
-  room.ts          One match: runs the sim at 60 ticks/s, sends snapshots 30 times a second.
+  room.ts          One room: lobby (teams, host), then the match at 60 ticks/s with 60 snapshots a second.
   main.ts          Starts the server on PORT (default 2567).
 client/            Browser only.
   main.ts          Menus, lobby, and switching between local and online play.
@@ -98,7 +101,6 @@ client/            Browser only.
   input.ts         Keyboard, gamepad and touch → Input.
   touch.ts         On-screen joystick and buttons for phones (multi-touch).
   joystick.ts      Joystick maths (dead zone, push-to-sprint), kept DOM-free for testing.
-shared/interp.ts   Adaptive smoothing buffer for online play.
   audio.ts         Sound effects, generated in code (no audio files).
   music.ts         Soft background music, generated live (chords, bass, arpeggio).
   settings.ts      Remembers team name, sound and music choices on this device.
@@ -161,9 +163,9 @@ Then open http://localhost:3000.
 ## Next milestones
 
 1. ~~Local match against bots~~ ✅
-2. ~~Online 1v1: server runs the match, quick match, room codes, rematch~~ ✅
+2. ~~Online 1v1: server runs the match, quick match, room codes, rematch~~ ✅ (now up to 3v3, see 4)
 3. ~~Responsive online play: client prediction and reconciliation~~ ✅
-4. 3v3 online, bots filling empty spots, quick match.
+4. ~~3v3 online: lobby, teams, host start, join mid-match, bots fill empty spots~~ ✅
 5. ~~Touch controls for phones and tablets~~ ✅
 6. ~~Deploy setup: one Render service for page and server~~ ✅
 7. Accounts and leaderboard with Supabase.

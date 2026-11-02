@@ -3,7 +3,7 @@ import http from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { parseClientMessage, type ServerMessage } from '../shared/protocol';
 import type { GameMode } from '../shared/types';
-import { Room, type Seat } from './room';
+import { Room, type RoomOptions, type Seat } from './room';
 import { staticFiles } from './static';
 
 /** Letters that are hard to mix up when read aloud or typed (no I, L, O, 0, 1). */
@@ -18,7 +18,7 @@ export interface RunningServer {
 }
 
 /** `staticDir`: serve the built game from this folder too (used when deployed). */
-export function startServer(port: number, staticDir?: string): Promise<RunningServer> {
+export function startServer(port: number, staticDir?: string, roomOptions: RoomOptions = {}): Promise<RunningServer> {
   const rooms = new Map<string, Room>();
   const serveFile = staticDir ? staticFiles(staticDir) : null;
 
@@ -43,7 +43,7 @@ export function startServer(port: number, staticDir?: string): Promise<RunningSe
   };
 
   const createRoom = (isPublic: boolean, mode: GameMode = 'match'): Room => {
-    const room = new Room(newCode(), isPublic, (r) => rooms.delete(r.code), mode);
+    const room = new Room(newCode(), isPublic, (r) => rooms.delete(r.code), mode, roomOptions);
     rooms.set(room.code, room);
     return room;
   };
@@ -85,10 +85,14 @@ export function startServer(port: number, staticDir?: string): Promise<RunningSe
           return;
         case 'quick': {
           if (room) return;
-          // Quick match pairs you with someone waiting for the same kind of game.
+          // Quick match: the fullest public lobby for the same kind of game, then a match already
+          // under way that has space, and only then a new room.
           const mode = msg.mode ?? 'match';
-          const waiting = [...rooms.values()].find((r) => r.isPublic && !r.started && r.playerCount === 1 && r.mode === mode);
-          enter(waiting ?? createRoom(true, mode), msg.name);
+          const open = [...rooms.values()].filter((r) => r.isPublic && r.mode === mode && !r.full);
+          const byFullest = (a: Room, b: Room) => b.playerCount - a.playerCount;
+          const lobby = open.filter((r) => !r.started).sort(byFullest)[0];
+          const live = open.filter((r) => r.started).sort(byFullest)[0];
+          enter(lobby ?? live ?? createRoom(true, mode), msg.name);
           return;
         }
         case 'create':

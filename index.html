@@ -61,6 +61,8 @@
       </div>
     </div>
 
+    <div id="toast" class="toast"></div>
+
     <div id="menu" class="overlay">
       <div class="panel">
         <h1>ROOFTOP <em>RUSH</em></h1>
@@ -104,7 +106,7 @@
     <div id="online" class="overlay hidden">
       <div class="panel">
         <h2>Play online</h2>
-        <p class="tag">You control one player each. Bots play alongside you.</p>
+        <p class="tag">Up to 3 people a side. Bots play any empty spots.</p>
         <button id="quick" class="primary">Quick match</button>
         <button id="create">Create private room</button>
         <form id="join-form" class="join-row">
@@ -116,16 +118,31 @@
       </div>
     </div>
 
-    <div id="waiting" class="overlay hidden">
-      <div class="panel">
-        <h2 id="waiting-title">Waiting for an opponent…</h2>
-        <div id="code-box">
-          <p class="tag">Share this room code</p>
-          <div id="room-code" class="room-code">----</div>
-          <button id="copy-code">Copy code</button>
+    <div id="lobby" class="overlay hidden">
+      <div class="panel lobby-panel">
+        <h2 id="lobby-title">Room</h2>
+        <div id="lobby-code-row" class="lobby-code-row">
+          <span class="tag">Room code</span>
+          <span id="room-code" class="room-code small">----</span>
+          <button id="copy-code" class="mini">Copy</button>
         </div>
-        <p class="hint">Your friend opens the game, picks <b>Play online</b> and joins with the code. For a quick test, open this page in a second tab.</p>
-        <button id="cancel-wait">Cancel</button>
+        <p id="lobby-mode" class="tag"></p>
+        <div class="lobby-teams">
+          <div class="lobby-team team-0">
+            <h3 id="lobby-name-0">SKYLINE</h3>
+            <ul id="lobby-list-0"></ul>
+            <button data-join-team="0" class="mini">Join this team</button>
+          </div>
+          <div class="lobby-team team-1">
+            <h3 id="lobby-name-1">NEON</h3>
+            <ul id="lobby-list-1"></ul>
+            <button data-join-team="1" class="mini">Join this team</button>
+          </div>
+        </div>
+        <p id="lobby-status" class="status"></p>
+        <button id="lobby-start" class="primary">Start match</button>
+        <button id="lobby-leave">Leave room</button>
+        <p class="hint">Up to 3 people a side; bots play any empty spots. Friends join with the room code, and can even join a match that's already started.</p>
       </div>
     </div>
 

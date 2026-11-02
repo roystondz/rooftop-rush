@@ -9,6 +9,7 @@ import { Hud } from './hud';
 import { InputManager } from './input';
 import { isTouchDevice } from './joystick';
 import { Connection, lagFromUrl, serverUrl } from './net';
+import { MAX_PER_TEAM, type LobbyInfo } from '../shared/protocol';
 import { OnlineGame } from './online';
 import { Renderer } from './renderer';
 import { loadSettings, saveSettings } from './settings';
@@ -43,7 +44,7 @@ let names: [string, string] = [...DEFAULT_TEAM_NAMES];
 const lag = lagFromUrl();
 const debugNet = new URLSearchParams(location.search).has('debug');
 
-const screens = ['menu', 'online', 'waiting', 'pause', 'fulltime'] as const;
+const screens = ['menu', 'online', 'lobby', 'pause', 'fulltime'] as const;
 type Screen = (typeof screens)[number];
 function show(screen: Screen | null): void {
   for (const s of screens) $(s).classList.toggle('hidden', s !== screen);
@@ -74,7 +75,7 @@ requestAnimationFrame(loop);
 function syncTouchControls(): void {
   const inMatch =
     (mode === 'local' && game.world !== null) || (mode === 'online' && online?.started === true);
-  const menuOpen = ['pause', 'fulltime', 'waiting', 'online', 'menu'].some((id) => !$(id).classList.contains('hidden'));
+  const menuOpen = ['pause', 'fulltime', 'lobby', 'online', 'menu'].some((id) => !$(id).classList.contains('hidden'));
   document.documentElement.classList.toggle('in-match', inMatch && !menuOpen);
   touch?.show(inMatch && !menuOpen);
   if (touch && inMatch) {
@@ -146,7 +147,7 @@ function showResult(w: World, myTeam: 0 | 1): void {
   const onPens = w.mode === 'penalties' ? ' on penalties' : '';
   $('result-score').textContent = `${names[0]} ${a} – ${b} ${names[1]}`;
   if (onPens && w.winner !== -1) $('result-title').textContent += onPens;
-  $('again').textContent = mode === 'online' ? 'Rematch' : 'Play again';
+  $('again').textContent = mode === 'online' ? 'Back to lobby' : 'Play again';
   $('rematch-status').textContent = '';
   show('fulltime');
 }
@@ -177,29 +178,20 @@ async function goOnline(first: 'quick' | 'create' | { join: string }): Promise<v
   }
   mode = 'online';
   online = new OnlineGame(conn, renderer, hud, input, effects, debugNet, {
-    room(code, isPublic, roomMode) {
-      $('room-code').textContent = code;
-      $('code-box').classList.toggle('hidden', isPublic);
-      const what = roomMode === 'penalties' ? ' (penalties)' : '';
-      $('waiting-title').textContent = (isPublic ? 'Finding an opponent' : 'Waiting for your friend') + `${what}…`;
-      show('waiting');
+    lobby(info) {
+      renderLobby(info);
+      if (info.started) return; // someone joined or left mid-match: nothing to show
+      // Back in the lobby (or just arrived). After full time, wait until they press "Back to lobby".
+      if ($('fulltime').classList.contains('hidden')) show('lobby');
+      else $('rematch-status').textContent = 'Everyone is back in the lobby.';
     },
     start(team, matchNames) {
       show(null);
       useNames(matchNames);
       hud.message(`YOU ARE ${names[team]}`, team === 0 ? 'Attack to the right →' : '← Attack to the left', 2);
     },
-    rematchRequested(team) {
-      if (team !== online?.team) $('rematch-status').textContent = 'Your opponent wants a rematch!';
-    },
-    opponentLeft() {
-      $('result-title').textContent = 'Opponent left';
-      $('result-score').textContent = '';
-      $('rematch-status').textContent = '';
-      $('again').textContent = 'Find another match';
-      hud.hide();
-      show('fulltime');
-      leaveOnline();
+    notice(text) {
+      toast(text);
     },
     error(message) {
       setStatus(message, true);
@@ -258,22 +250,27 @@ $('join-form').addEventListener('submit', (e) => {
   }
   void goOnline({ join: code });
 });
-$('cancel-wait').addEventListener('click', () => {
+$('lobby-leave').addEventListener('click', () => {
   leaveOnline();
   mode = 'menu';
   show('online');
 });
+$('lobby-start').addEventListener('click', () => online?.requestStart());
+document.querySelectorAll<HTMLButtonElement>('[data-join-team]').forEach((btn) => {
+  btn.addEventListener('click', () => online?.chooseTeam(Number(btn.dataset.joinTeam) as Team));
+});
 $('copy-code').addEventListener('click', () => {
   void navigator.clipboard?.writeText($('room-code').textContent ?? '');
   $('copy-code').textContent = 'Copied!';
-  setTimeout(() => ($('copy-code').textContent = 'Copy code'), 1200);
+  setTimeout(() => ($('copy-code').textContent = 'Copy'), 1200);
 });
 
 $('again').addEventListener('click', () => {
   if (mode === 'online' && online) {
-    online.rematch();
-    $('rematch-status').textContent = 'Waiting for your opponent…';
-  } else if (mode === 'online' || $('again').textContent === 'Find another match') {
+    // The server brings everyone back to the lobby a few seconds after full time.
+    if (online.lobbyInfo && !online.lobbyInfo.started) show('lobby');
+    else $('rematch-status').textContent = 'Back to the lobby in a moment…';
+  } else if (mode === 'online') {
     void goOnline('quick');
   } else {
     playLocal();
@@ -353,3 +350,77 @@ if (import.meta.env.DEV) {
   // Handy for poking at the game from the browser console.
   Object.assign(window, { __rr: { game, sfx, get online() { return online; }, get mode() { return mode; } } });
 }
+
+// --- lobby ---------------------------------------------------------------------------
+
+let lobbyCountdownEnd: number | null = null;
+
+/** Draws the lobby: both teams, who's in them, and what happens next. */
+function renderLobby(info: LobbyInfo): void {
+  $('room-code').textContent = info.code;
+  $('lobby-code-row').classList.toggle('hidden', info.isPublic);
+  $('lobby-title').textContent = info.isPublic ? 'Quick match' : 'Your room';
+  $('lobby-mode').textContent = info.mode === 'penalties' ? 'Penalty shootout' : 'Match · 3 minutes';
+  const me = info.players.find((p) => p.seat === info.you);
+  for (const team of [0, 1] as const) {
+    $(`lobby-name-${team}`).textContent = info.names[team];
+    const list = $(`lobby-list-${team}`);
+    list.innerHTML = '';
+    const people = info.players.filter((p) => p.team === team).sort((a, b) => a.seat - b.seat);
+    for (const p of people) {
+      const li = document.createElement('li');
+      li.textContent = p.name;
+      if (p.seat === info.host) li.append(tag('★ host'));
+      if (p.seat === info.you) {
+        li.classList.add('you');
+        li.append(tag('you'));
+      }
+      list.append(li);
+    }
+    for (let i = people.length; i < MAX_PER_TEAM; i++) {
+      const li = document.createElement('li');
+      li.className = 'bot';
+      li.textContent = 'Bot';
+      list.append(li);
+    }
+    const joinBtn = document.querySelector<HTMLButtonElement>(`[data-join-team="${team}"]`)!;
+    joinBtn.classList.toggle('hidden', !me || me.team === team || people.length >= MAX_PER_TEAM || info.started);
+  }
+
+  const isHost = info.you === info.host;
+  const ready = info.players.some((p) => p.team === 0) && info.players.some((p) => p.team === 1);
+  $('lobby-start').classList.toggle('hidden', info.isPublic || !isHost);
+  ($('lobby-start') as HTMLButtonElement).disabled = !ready;
+  lobbyCountdownEnd = info.startsIn !== null ? performance.now() + info.startsIn * 1000 : null;
+  const host = info.players.find((p) => p.seat === info.host);
+  let status: string;
+  if (info.isPublic) status = ready ? '' : 'Waiting for more players…';
+  else if (!ready) status = 'Waiting for someone on each team… share the code!';
+  else if (isHost) status = 'Ready when you are. More friends can still join.';
+  else status = `Waiting for ${host?.name ?? 'the host'} to start…`;
+  $('lobby-status').textContent = status;
+  updateLobbyCountdown();
+}
+
+function tag(text: string): HTMLElement {
+  const small = document.createElement('small');
+  small.textContent = text;
+  return small;
+}
+
+function updateLobbyCountdown(): void {
+  if (lobbyCountdownEnd === null || $('lobby').classList.contains('hidden')) return;
+  const left = Math.max(0, Math.ceil((lobbyCountdownEnd - performance.now()) / 1000));
+  $('lobby-status').textContent = `Starting in ${left}… (more people can still join)`;
+}
+setInterval(updateLobbyCountdown, 250);
+
+/** A short message at the bottom of the screen, e.g. "Sam joined the match". */
+function toast(text: string): void {
+  const el = $('toast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout((toast as unknown as { timer?: number }).timer);
+  (toast as unknown as { timer?: number }).timer = window.setTimeout(() => el.classList.remove('show'), 2600);
+}
+
