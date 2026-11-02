@@ -33,7 +33,7 @@ export function createWorld(options: { duration?: number; mode?: GameMode } = {}
     score: [0, 0],
     goldenGoal: false,
     kickoffTeam: 0,
-    kickoffPending: true,
+    kickoffPending: mode === 'match', // shootouts have no kickoff pass
     players,
     ball: makeBall(),
     rush: [0, 0],

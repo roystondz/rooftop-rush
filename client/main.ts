@@ -13,6 +13,8 @@ import { MAX_PER_TEAM, type LobbyInfo } from '../shared/protocol';
 import { OnlineGame } from './online';
 import { Renderer } from './renderer';
 import { loadSettings, saveSettings } from './settings';
+import { clearStats, loadStats, recordEvent, recordResult, saveStats, type Opponent } from './stats';
+import { renderStats } from './stats-view';
 import { TouchControls, type TouchMode } from './touch';
 import type { GameMode, Team } from '../shared/types';
 import { penaltyDuel } from '../shared/sim';
@@ -39,13 +41,16 @@ let mode: 'menu' | 'local' | 'online' = 'menu';
 let difficulty: Difficulty = 'normal';
 let gameMode: GameMode = 'match';
 const settings = loadSettings();
+let stats = loadStats();
+/** Who the current match is against, for your stats. */
+let opponent: Opponent = 'normal';
 /** Names shown for the current match: [left team, right team]. */
 let names: [string, string] = [...DEFAULT_TEAM_NAMES];
 // Testing aids: ?lag=200&jitter=40 fakes a slow connection, ?debug shows prediction details.
 const lag = lagFromUrl();
 const debugNet = new URLSearchParams(location.search).has('debug');
 
-const screens = ['menu', 'online', 'lobby', 'pause', 'fulltime'] as const;
+const screens = ['menu', 'online', 'lobby', 'pause', 'fulltime', 'stats'] as const;
 type Screen = (typeof screens)[number];
 function show(screen: Screen | null): void {
   for (const s of screens) $(s).classList.toggle('hidden', s !== screen);
@@ -76,7 +81,7 @@ requestAnimationFrame(loop);
 function syncTouchControls(): void {
   const inMatch =
     (mode === 'local' && game.world !== null) || (mode === 'online' && online?.started === true);
-  const menuOpen = ['pause', 'fulltime', 'lobby', 'online', 'menu'].some((id) => !$(id).classList.contains('hidden'));
+  const menuOpen = ['pause', 'fulltime', 'lobby', 'online', 'menu', 'stats'].some((id) => !$(id).classList.contains('hidden'));
   document.documentElement.classList.toggle('in-match', inMatch && !menuOpen);
   touch?.show(inMatch && !menuOpen);
   if (touch && inMatch) {
@@ -119,6 +124,7 @@ function playLocal(): void {
   mode = 'local';
   show(null);
   useNames(teamNames(settings.teamName, undefined));
+  opponent = difficulty;
   game.start(difficulty, gameMode);
 }
 
@@ -148,10 +154,33 @@ function showResult(w: World, myTeam: 0 | 1): void {
   const onPens = w.mode === 'penalties' ? ' on penalties' : '';
   $('result-score').textContent = `${names[0]} ${a} – ${b} ${names[1]}`;
   if (onPens && w.winner !== -1) $('result-title').textContent += onPens;
+  $('result-extra').textContent = streakLine();
   $('again').textContent = mode === 'online' ? 'Back to lobby' : 'Play again';
   $('rematch-status').textContent = '';
   show('fulltime');
 }
+
+/** Under the result: your win streak, if you're on one. */
+function streakLine(): string {
+  if (stats.streak < 2) return '';
+  const best = stats.streak === stats.bestStreak ? ' · new best!' : '';
+  return `${stats.streak} wins in a row${best}`;
+}
+
+// Keep your stats as events happen. They're saved at full time (and only then), so quitting
+// halfway through a match leaves no half-finished result behind.
+effects.onEvent = (w, e) => {
+  const playing = mode === 'local' ? game.world !== null : mode === 'online' && online?.started === true;
+  if (!playing) return;
+  const myTeam: Team = mode === 'local' ? game.humanTeam : (online?.team ?? 0);
+  const controlled = mode === 'local' ? game.controlledId : (online?.controlledId ?? -1);
+  if (e.type === 'fulltime') {
+    recordResult(stats, w, myTeam, mode === 'online' ? 'online' : opponent, names);
+    saveStats(stats);
+  } else {
+    recordEvent(stats, w, e, myTeam, controlled);
+  }
+};
 
 effects.onFullTime = (w) => {
   if (mode === 'local') showResult(w, game.humanTeam);
@@ -234,6 +263,16 @@ document.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach((btn) 
 });
 
 $('play').addEventListener('click', playLocal);
+$('stats-btn').addEventListener('click', () => {
+  renderStats(stats);
+  show('stats');
+});
+$('stats-back').addEventListener('click', () => show('menu'));
+$('stats-reset').addEventListener('click', () => {
+  if (!confirm('Clear all your stats on this device?')) return;
+  stats = clearStats();
+  renderStats(stats);
+});
 $('rotate-ok').addEventListener('click', () => document.documentElement.classList.add('rotate-ok'));
 $('online-btn').addEventListener('click', () => {
   setStatus('');

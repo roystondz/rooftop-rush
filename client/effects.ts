@@ -13,6 +13,8 @@ export class Effects {
   /** How to take a penalty, and how to save one, on this device. */
   penaltyHints = { take: 'aim with the arrows, hold J to shoot', save: 'A/D to move, L to dive' };
   onFullTime: (w: World) => void = () => {};
+  /** Every match event, as it happens (used to keep your stats). */
+  onEvent: (w: World, e: MatchEvent) => void = () => {};
   private lastPhase: Phase | null = null;
 
   constructor(
@@ -30,6 +32,8 @@ export class Effects {
   watchPhase(w: World): void {
     if (w.phase === this.lastPhase) return;
     if (w.phase === 'kickoff' && w.mode === 'match') this.hud.message('KICK OFF', '', 1.2);
+    // The first kick is set up with the world, before any events reach us, so announce it here.
+    if (this.lastPhase === null && w.mode === 'penalties' && w.shootout) this.announcePenalty(w, w.shootout.taker);
     if (w.phase === 'playing' && this.lastPhase === 'kickoff' && w.kickoffPending && w.kickoffTeam === this.myTeam) {
       this.hud.message('PASS TO START', `Turn to aim, then ${this.passHint}`, 1.8);
     }
@@ -42,7 +46,18 @@ export class Effects {
     this.sfx.crowdSwell(0.6);
   }
 
+  /** "YOUR PENALTY" or "SAVE IT!", with the kick number and how to shoot or save. */
+  private announcePenalty(w: World, taker: Team): void {
+    const kicks = w.shootout?.kicks;
+    const n = kicks ? kicks[taker].length + 1 : 1;
+    const ours = taker === this.myTeam;
+    const title = ours ? 'YOUR PENALTY' : 'SAVE IT!';
+    const hint = ours ? this.penaltyHints.take : this.penaltyHints.save;
+    this.hud.message(title, `Kick ${n} · ${hint}`, 2);
+  }
+
   handle(w: World, e: MatchEvent): void {
+    this.onEvent(w, e);
     const ours = e.team === this.myTeam;
     switch (e.type) {
       case 'whistle':
@@ -92,14 +107,9 @@ export class Effects {
         this.sfx.rushReady();
         if (ours) this.hud.message('RUSH READY', 'Your next shot is a power shot', 1.4);
         break;
-      case 'penaltySetup': {
-        const kicks = w.shootout?.kicks;
-        const n = kicks ? kicks[e.team ?? 0].length + 1 : 1;
-        const title = ours ? 'YOUR PENALTY' : 'SAVE IT!';
-        const hint = ours ? this.penaltyHints.take : this.penaltyHints.save;
-        this.hud.message(title, `Kick ${n} · ${hint}`, 2);
+      case 'penaltySetup':
+        this.announcePenalty(w, e.team ?? 0);
         break;
-      }
       case 'penaltyMiss':
         this.sfx.crowdSwell(0.7);
         this.hud.message('MISSED!', '', 1.6);

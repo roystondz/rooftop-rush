@@ -86,6 +86,7 @@
         </div>
         <button id="play" class="primary">Play vs bots</button>
         <button id="online-btn">Play online</button>
+        <button id="stats-btn">Your stats</button>
         <div class="touch-help">
           <div><b>Left thumb:</b> drag anywhere on the left to move, push to the edge to sprint</div>
           <div><b>SHOOT:</b> hold to charge, let go to shoot — steer while charging to curl</div>
@@ -158,10 +159,32 @@
       </div>
     </div>
 
+    <div id="stats" class="overlay hidden">
+      <div class="panel stats-panel">
+        <h2>Your stats</h2>
+        <p class="tag">Saved in this browser on this device</p>
+        <div id="stat-tiles" class="stat-tiles"></div>
+        <p id="stat-empty" class="status">Play a match and your record starts here.</p>
+        <div id="stat-body">
+          <h3>Matches</h3>
+          <table id="stat-matches" class="stat-table"></table>
+          <h3>Penalty shootouts</h3>
+          <table id="stat-shootouts" class="stat-table"></table>
+          <p id="stat-pens" class="stat-line"></p>
+          <p id="stat-best" class="stat-line"></p>
+          <h3>Recent</h3>
+          <ol id="stat-recent" class="recent"></ol>
+        </div>
+        <button id="stats-back" class="primary">Back</button>
+        <button id="stats-reset" class="mini danger">Reset stats</button>
+      </div>
+    </div>
+
     <div id="fulltime" class="overlay hidden">
       <div class="panel">
         <h2 id="result-title">Full time</h2>
         <p id="result-score" class="result-score"></p>
+        <p id="result-extra" class="result-extra"></p>
         <p id="rematch-status" class="status"></p>
         <button id="again" class="primary">Play again</button>
         <button id="to-menu">Menu</button>

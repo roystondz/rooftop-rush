@@ -98,6 +98,8 @@ client/            Browser only.
   net.ts           WebSocket connection, server address, and the ?lag= simulator.
   effects.ts       Match events → sounds, screen shake, messages.
   replay.ts        Instant replay: keeps the last few seconds and replays goals in slow motion.
+  stats.ts         Your record (results, goals, penalties, streaks), saved in this browser.
+  stats-view.ts    The "Your stats" screen.
   renderer.ts      Three.js drawing: arena, city, players, ball, camera, effects.
   input.ts         Keyboard, gamepad and touch → Input.
   touch.ts         On-screen joystick and buttons for phones (multi-touch).
@@ -170,4 +172,5 @@ Then open http://localhost:3000.
 5. ~~Touch controls for phones and tablets~~ ✅
 6. ~~Deploy setup: one Render service for page and server~~ ✅
 7. ~~Goal celebrations and instant replays (local and online)~~ ✅
-8. Accounts and leaderboard with Supabase.
+8. ~~Your stats, saved in the browser (accounts can sync them later)~~ ✅
+9. Accounts and leaderboard with Supabase.

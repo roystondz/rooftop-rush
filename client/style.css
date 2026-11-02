@@ -1070,3 +1070,166 @@ html.touch,
   }
 }
 
+
+/* --- Your stats ------------------------------------------------------------ */
+
+.stats-panel {
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.stats-panel .tag {
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.stats-panel h3 {
+  margin: 18px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.stat-tile {
+  padding: 10px 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stat-tile b {
+  display: block;
+  font-size: 24px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-tile span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-table th {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stat-table th,
+.stat-table td {
+  padding: 5px 4px;
+  text-align: center;
+}
+
+.stat-table td:first-child {
+  text-align: left;
+  color: var(--muted);
+}
+
+.stat-table tr + tr td {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.stat-line {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}
+
+.stat-line:empty {
+  display: none;
+}
+
+.recent {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.recent li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.recent li + li {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.recent .chip {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 900;
+  color: #0b1020;
+}
+
+.recent .chip.W {
+  background: #4ade80;
+}
+
+.recent .chip.D {
+  background: #94a3b8;
+}
+
+.recent .chip.L {
+  background: #f87171;
+}
+
+.recent .line {
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.recent .line small {
+  display: block;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.panel button.mini.danger {
+  margin: 14px auto 0;
+  background: none;
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #fca5a5;
+}
+
+.result-extra {
+  margin: -6px 0 6px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.result-extra:empty {
+  display: none;
+}
+
+@media (max-width: 420px) {
+  .stat-tile b {
+    font-size: 20px;
+  }
+}

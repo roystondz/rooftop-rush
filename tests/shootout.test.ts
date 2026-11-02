@@ -345,3 +345,12 @@ describe('the bot keeper before the kick', () => {
     }
   });
 });
+
+describe('shootout start', () => {
+  it('has no kickoff pass to make', () => {
+    const w = createWorld({ mode: 'penalties' });
+    expect(w.kickoffPending).toBe(false);
+    for (let i = 0; i < 200; i++) step(w, []);
+    expect(w.kickoffPending).toBe(false);
+  });
+});
